@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 import { EXERCISES, CATEGORIES } from "./exercises";
+import PatientApp from "./PatientApp";
 
 function Avatar({ initials, size = "md" }) {
   const sizes = { sm: "w-8 h-8 text-xs", md: "w-10 h-10 text-sm", lg: "w-14 h-14 text-base" };
@@ -53,12 +54,13 @@ function LoginView() {
         <h2 style={{ fontFamily: "'Fraunces', serif" }} className="text-2xl font-bold text-slate-800 mb-1">
           {isRegister ? "Crear cuenta" : "Bienvenido"}
         </h2>
-        <p className="text-slate-500 text-sm mb-6">{isRegister ? "Registra tu cuenta de fisioterapeuta" : "Inicia sesión para continuar"}</p>
+        <p className="text-slate-500 text-sm mb-6">{isRegister ? "Crea tu cuenta" : "Inicia sesión para continuar"}</p>
         <div className="grid gap-3">
           <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Correo electrónico" type="email"
             className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300" />
           <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Contraseña" type="password"
-            className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300" />
+            className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300"
+            onKeyDown={e => e.key === "Enter" && handle()} />
         </div>
         {error && <p className="text-red-500 text-xs mt-3">{error}</p>}
         <button onClick={handle} disabled={loading}
@@ -82,7 +84,9 @@ function PatientsView({ user, onPrescribe }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", age: "", condition: "", next_session: "" });
+  const [form, setForm] = useState({ name: "", age: "", condition: "", next_session: "", email: "" });
+  const [inviteLink, setInviteLink] = useState(null);
+  const [invitePatient, setInvitePatient] = useState(null);
 
   useEffect(() => { fetchPatients(); }, []);
 
@@ -93,9 +97,21 @@ function PatientsView({ user, onPrescribe }) {
 
   const addPatient = async () => {
     if (!form.name) return;
-    await supabase.from("patients").insert({ ...form, therapist_id: user.id, age: parseInt(form.age) || null });
-    setForm({ name: "", age: "", condition: "", next_session: "" });
-    setShowForm(false); fetchPatients();
+    const token = crypto.randomUUID();
+    const { data } = await supabase.from("patients").insert({
+      ...form, therapist_id: user.id, age: parseInt(form.age) || null, invite_token: token
+    }).select().single();
+    setForm({ name: "", age: "", condition: "", next_session: "", email: "" });
+    setShowForm(false);
+    if (data) generateInviteLink(data);
+    fetchPatients();
+  };
+
+  const generateInviteLink = (patient) => {
+    const token = patient.invite_token;
+    const link = `${window.location.origin}?invite=${token}`;
+    setInviteLink(link);
+    setInvitePatient(patient);
   };
 
   const initials = (name) => name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -103,6 +119,26 @@ function PatientsView({ user, onPrescribe }) {
 
   return (
     <div>
+      {inviteLink && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
+            <h3 style={{ fontFamily: "'Fraunces', serif" }} className="font-bold text-slate-800 text-lg mb-1">¡Paciente creado!</h3>
+            <p className="text-slate-500 text-sm mb-4">Envíale este link a <strong>{invitePatient?.name}</strong> para que acceda a su plan:</p>
+            <div className="bg-slate-50 rounded-xl p-3 mb-4 break-all text-xs text-slate-600 border border-slate-200">{inviteLink}</div>
+            <div className="flex gap-2">
+              <button onClick={() => { navigator.clipboard.writeText(inviteLink); }}
+                className="flex-1 bg-teal-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-teal-700 transition-colors">
+                📋 Copiar link
+              </button>
+              <button onClick={() => { setInviteLink(null); setInvitePatient(null); }}
+                className="flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-200 transition-colors">
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 style={{ fontFamily: "'Fraunces', serif" }} className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
@@ -113,9 +149,12 @@ function PatientsView({ user, onPrescribe }) {
           <span className="text-lg leading-none">+</span> Nuevo paciente
         </button>
       </div>
+
       {showForm && (
         <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4 mb-4 grid grid-cols-2 gap-3">
           <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Nombre completo *"
+            className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
+          <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Correo del paciente" type="email"
             className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
           <input value={form.age} onChange={e => setForm({ ...form, age: e.target.value })} placeholder="Edad" type="number"
             className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
@@ -124,18 +163,20 @@ function PatientsView({ user, onPrescribe }) {
           <input value={form.condition} onChange={e => setForm({ ...form, condition: e.target.value })} placeholder="Diagnóstico / condición"
             className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
           <div className="col-span-2 flex gap-2">
-            <button onClick={addPatient} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-700 transition-colors">Guardar</button>
+            <button onClick={addPatient} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-700 transition-colors">Guardar y generar link</button>
             <button onClick={() => setShowForm(false)} className="bg-white text-slate-500 px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 hover:bg-slate-50 transition-colors">Cancelar</button>
           </div>
         </div>
       )}
+
       <div className="mb-4">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar paciente..."
           className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
       </div>
+
       {loading ? <div className="text-center py-12 text-slate-400">Cargando pacientes...</div>
         : filtered.length === 0 ? (
-          <div className="text-center py-12 text-slate-400"><p className="text-4xl mb-3">👤</p><p>No hay pacientes aún. ¡Agrega el primero!</p></div>
+          <div className="text-center py-12 text-slate-400"><p className="text-4xl mb-3">👤</p><p>No hay pacientes aún.</p></div>
         ) : (
           <div className="grid gap-3">
             {filtered.map(p => (
@@ -146,13 +187,17 @@ function PatientsView({ user, onPrescribe }) {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-slate-800">{p.name}</span>
                       <StatusBadge status={p.status} />
+                      {p.user_id && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✓ Activo</span>}
                     </div>
                     <p className="text-sm text-slate-500 mt-0.5">{p.condition || "Sin diagnóstico"}{p.age ? ` · ${p.age} años` : ""}</p>
-                    {p.next_session && <p className="text-xs text-slate-400 mt-1">Próxima cita: {p.next_session}</p>}
+                    {p.email && <p className="text-xs text-slate-400 mt-0.5">{p.email}</p>}
                   </div>
-                  <button onClick={() => onPrescribe(p)} className="bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors flex-shrink-0">
-                    Prescribir
-                  </button>
+                  <div className="flex gap-2 flex-shrink-0 flex-col items-end">
+                    <button onClick={() => onPrescribe(p)} className="bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors">Prescribir</button>
+                    {p.invite_token && (
+                      <button onClick={() => generateInviteLink(p)} className="bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors">🔗 Link</button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -183,32 +228,25 @@ function PrescribeView({ user, patient, onBack }) {
   };
 
   const removeExercise = (id) => setSelected(prev => prev.filter(e => e.id !== id));
-
-  const updateExercise = (id, field, value) => {
-    setSelected(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
-  };
+  const updateExercise = (id, field, value) => setSelected(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
 
   const send = async () => {
     if (!selected.length) return;
     setLoading(true);
-    await supabase.from("prescriptions").insert({
-      patient_id: patient.id, therapist_id: user.id, exercises: selected, note,
-    });
+    await supabase.from("prescriptions").insert({ patient_id: patient.id, therapist_id: user.id, exercises: selected, note });
     setSubmitted(true); setLoading(false);
   };
 
   const initials = patient.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
-  if (submitted) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4 text-3xl">✓</div>
-        <h3 style={{ fontFamily: "'Fraunces', serif" }} className="text-2xl font-bold text-slate-800 mb-2">¡Plan guardado!</h3>
-        <p className="text-slate-500 mb-6">El plan fue prescrito a <strong>{patient.name}</strong> con {selected.length} ejercicios.</p>
-        <button onClick={onBack} className="bg-teal-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-teal-700 transition-colors">Volver a pacientes</button>
-      </div>
-    );
-  }
+  if (submitted) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4 text-3xl">✓</div>
+      <h3 style={{ fontFamily: "'Fraunces', serif" }} className="text-2xl font-bold text-slate-800 mb-2">¡Plan guardado!</h3>
+      <p className="text-slate-500 mb-6">Plan prescrito a <strong>{patient.name}</strong> con {selected.length} ejercicios.</p>
+      <button onClick={onBack} className="bg-teal-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-teal-700 transition-colors">Volver a pacientes</button>
+    </div>
+  );
 
   return (
     <div>
@@ -220,17 +258,11 @@ function PrescribeView({ user, patient, onBack }) {
           <p className="text-slate-500 text-sm">{patient.name} · {patient.condition || "Sin diagnóstico"}</p>
         </div>
       </div>
-
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* LEFT: Library */}
         <div>
-          <h3 className="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wider">
-            Biblioteca ({EXERCISES.length} ejercicios)
-          </h3>
-          <div className="flex gap-2 mb-3">
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar ejercicio..."
-              className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
-          </div>
+          <h3 className="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wider">Biblioteca ({EXERCISES.length} ejercicios)</h3>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar ejercicio..."
+            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white mb-3" />
           <div className="flex gap-1.5 flex-wrap mb-3">
             {CATEGORIES.map(cat => (
               <button key={cat} onClick={() => setCategory(cat)}
@@ -241,10 +273,9 @@ function PrescribeView({ user, patient, onBack }) {
           </div>
           <div className="grid gap-2 max-h-[500px] overflow-y-auto pr-1">
             {filtered.map(ex => {
-              const isSelected = selected.find(e => e.id === ex.id);
+              const isSel = selected.find(e => e.id === ex.id);
               return (
-                <div key={ex.id}
-                  className={`p-3 rounded-xl border-2 transition-all ${isSelected ? "border-teal-400 bg-teal-50" : "border-slate-100 bg-white hover:border-slate-300"}`}>
+                <div key={ex.id} className={`p-3 rounded-xl border-2 transition-all ${isSel ? "border-teal-400 bg-teal-50" : "border-slate-100 bg-white hover:border-slate-300"}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-slate-800 text-sm">{ex.name}</p>
@@ -254,29 +285,22 @@ function PrescribeView({ user, patient, onBack }) {
                         <span className="text-xs text-slate-400">{ex.defaultSets} series · {ex.defaultReps}</span>
                       </div>
                     </div>
-                    <button onClick={() => isSelected ? removeExercise(ex.id) : addExercise(ex)}
-                      className={`flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors ${isSelected ? "bg-teal-600 text-white" : "bg-teal-50 text-teal-700 hover:bg-teal-100"}`}>
-                      {isSelected ? "✓" : "+"}
+                    <button onClick={() => isSel ? removeExercise(ex.id) : addExercise(ex)}
+                      className={`flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors ${isSel ? "bg-teal-600 text-white" : "bg-teal-50 text-teal-700 hover:bg-teal-100"}`}>
+                      {isSel ? "✓" : "+"}
                     </button>
                   </div>
                 </div>
               );
             })}
-            {filtered.length === 0 && (
-              <div className="text-center py-8 text-slate-400 text-sm">No se encontraron ejercicios</div>
-            )}
+            {filtered.length === 0 && <div className="text-center py-8 text-slate-400 text-sm">No se encontraron ejercicios</div>}
           </div>
         </div>
 
-        {/* RIGHT: Plan */}
         <div>
-          <h3 className="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wider">
-            Plan del paciente ({selected.length} ejercicios)
-          </h3>
+          <h3 className="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wider">Plan ({selected.length} ejercicios)</h3>
           {selected.length === 0 ? (
-            <div className="bg-slate-50 rounded-xl p-8 text-center text-slate-400 text-sm border-2 border-dashed border-slate-200">
-              Selecciona ejercicios de la biblioteca
-            </div>
+            <div className="bg-slate-50 rounded-xl p-8 text-center text-slate-400 text-sm border-2 border-dashed border-slate-200">Selecciona ejercicios de la biblioteca</div>
           ) : (
             <div className="grid gap-2 max-h-[380px] overflow-y-auto pr-1 mb-4">
               {selected.map((ex, i) => (
@@ -289,50 +313,26 @@ function PrescribeView({ user, patient, onBack }) {
                     </div>
                     <button onClick={() => removeExercise(ex.id)} className="text-slate-300 hover:text-red-400 transition-colors text-xl leading-none flex-shrink-0">×</button>
                   </div>
-                  {/* Editable series & reps */}
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <label className="text-xs text-slate-400 block mb-1">Series</label>
-                      <input
-                        type="number"
-                        value={ex.sets}
-                        min="1"
-                        onChange={e => updateExercise(ex.id, "sets", e.target.value)}
-                        className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 text-center font-semibold"
-                      />
+                      <input type="number" value={ex.sets} min="1" onChange={e => updateExercise(ex.id, "sets", e.target.value)}
+                        className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 text-center font-semibold" />
                     </div>
                     <div className="flex-1">
                       <label className="text-xs text-slate-400 block mb-1">Reps / Tiempo</label>
-                      <input
-                        type="text"
-                        value={ex.reps}
-                        onChange={e => updateExercise(ex.id, "reps", e.target.value)}
-                        className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 text-center font-semibold"
-                      />
+                      <input type="text" value={ex.reps} onChange={e => updateExercise(ex.id, "reps", e.target.value)}
+                        className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 text-center font-semibold" />
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           )}
-
-          <div className="mt-2">
-            <label className="text-sm font-medium text-slate-700 block mb-2">Nota para el paciente</label>
-            <textarea value={note} onChange={e => setNote(e.target.value)}
-              placeholder="Indicaciones adicionales, frecuencia semanal, precauciones..."
-              className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 resize-none" rows={3} />
-          </div>
-
-          <div className="mt-3">
-            <label className="text-sm font-medium text-slate-700 block mb-2">Video del ejercicio (opcional)</label>
-            <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center bg-white cursor-pointer hover:border-teal-300 transition-colors">
-              <p className="text-slate-400 text-sm">📎 Arrastra o haz clic para subir video</p>
-              <p className="text-xs text-slate-300 mt-1">MP4, MOV · Máx 100MB</p>
-            </div>
-          </div>
-
+          <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Nota para el paciente..."
+            className="w-full border border-slate-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 resize-none mb-3" rows={3} />
           <button onClick={send} disabled={!selected.length || loading}
-            className={`w-full mt-4 py-3 rounded-xl font-semibold text-sm transition-all ${selected.length > 0 ? "bg-teal-600 text-white hover:bg-teal-700" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}>
+            className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${selected.length > 0 ? "bg-teal-600 text-white hover:bg-teal-700" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}>
             {loading ? "Guardando..." : `Guardar plan (${selected.length} ejercicios)`}
           </button>
         </div>
@@ -367,11 +367,11 @@ function AgendaView({ user }) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 style={{ fontFamily: "'Fraunces', serif" }} className="text-2xl font-bold text-slate-800">Agenda</h2>
-          <p className="text-slate-500 text-sm mt-0.5">{appointments.length} citas programadas</p>
+          <p className="text-slate-500 text-sm mt-0.5">{appointments.length} citas</p>
         </div>
         <button onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">
-          <span className="text-lg leading-none">+</span> Nueva cita
+          <span>+</span> Nueva cita
         </button>
       </div>
       {showForm && (
@@ -384,22 +384,20 @@ function AgendaView({ user }) {
             className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
           <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}
             className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white">
-            <option>Presencial</option>
-            <option>Videollamada</option>
+            <option>Presencial</option><option>Videollamada</option>
           </select>
           <div className="col-span-2 flex gap-2">
             <button onClick={addAppointment} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-700 transition-colors">Guardar</button>
-            <button onClick={() => setShowForm(false)} className="bg-white text-slate-500 px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onClick={() => setShowForm(false)} className="bg-white text-slate-500 px-4 py-2 rounded-xl text-sm font-medium border border-slate-200">Cancelar</button>
           </div>
         </div>
       )}
-      {loading ? <div className="text-center py-12 text-slate-400">Cargando agenda...</div>
-        : appointments.length === 0 ? (
-          <div className="text-center py-12 text-slate-400"><p className="text-4xl mb-3">📅</p><p>No hay citas programadas aún.</p></div>
-        ) : (
+      {loading ? <div className="text-center py-12 text-slate-400">Cargando...</div>
+        : appointments.length === 0 ? <div className="text-center py-12 text-slate-400"><p className="text-4xl mb-3">📅</p><p>No hay citas aún.</p></div>
+        : (
           <div className="grid gap-3">
             {appointments.map(apt => (
-              <div key={apt.id} className="bg-white rounded-2xl border border-slate-100 p-4 hover:shadow-md transition-shadow">
+              <div key={apt.id} className="bg-white rounded-2xl border border-slate-100 p-4">
                 <div className="flex items-center gap-4">
                   <div className="text-center bg-teal-50 rounded-xl px-3 py-2 min-w-[60px]">
                     <p className="text-teal-700 font-bold text-lg leading-none">{apt.time || "--:--"}</p>
@@ -407,10 +405,7 @@ function AgendaView({ user }) {
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-slate-800">{apt.patient_name}</p>
-                    <div className="flex gap-2 mt-1">
-                      <StatusBadge status={apt.type} />
-                      <StatusBadge status={apt.status} />
-                    </div>
+                    <div className="flex gap-2 mt-1"><StatusBadge status={apt.type} /><StatusBadge status={apt.status} /></div>
                   </div>
                 </div>
               </div>
@@ -448,15 +443,14 @@ function MessagesView({ user }) {
   return (
     <div>
       <h2 style={{ fontFamily: "'Fraunces', serif" }} className="text-2xl font-bold text-slate-800 mb-6">Mensajes</h2>
-      {loading ? <div className="text-center py-12 text-slate-400">Cargando mensajes...</div>
-        : messages.length === 0 ? (
-          <div className="text-center py-12 text-slate-400"><p className="text-4xl mb-3">💬</p><p>No hay mensajes aún.</p></div>
-        ) : (
+      {loading ? <div className="text-center py-12 text-slate-400">Cargando...</div>
+        : messages.length === 0 ? <div className="text-center py-12 text-slate-400"><p className="text-4xl mb-3">💬</p><p>No hay mensajes aún.</p></div>
+        : (
           <div className="grid md:grid-cols-5 gap-4 h-[500px]">
             <div className="md:col-span-2 bg-white rounded-2xl border border-slate-100 overflow-y-auto">
               {messages.map(msg => (
                 <div key={msg.id} onClick={() => setActive(msg)}
-                  className={`p-4 cursor-pointer border-b border-slate-50 hover:bg-slate-50 transition-colors ${active?.id === msg.id ? "bg-teal-50 border-l-2 border-l-teal-500" : ""}`}>
+                  className={`p-4 cursor-pointer border-b border-slate-50 hover:bg-slate-50 ${active?.id === msg.id ? "bg-teal-50 border-l-2 border-l-teal-500" : ""}`}>
                   <div className="flex items-start gap-3">
                     <Avatar initials={initials(msg.patient_name)} size="sm" />
                     <div className="flex-1 min-w-0">
@@ -474,15 +468,15 @@ function MessagesView({ user }) {
                     <Avatar initials={initials(active.patient_name)} size="sm" />
                     <p className="font-semibold text-slate-800">{active.patient_name}</p>
                   </div>
-                  <div className="flex-1 p-4 overflow-y-auto">
-                    <div className={`rounded-2xl p-3 max-w-xs ${active.sender === "therapist" ? "bg-teal-600 text-white ml-auto rounded-tr-none" : "bg-slate-50 rounded-tl-none"}`}>
-                      <p className="text-sm">{active.content}</p>
+                  <div className="flex-1 p-4">
+                    <div className={`rounded-2xl p-3 max-w-xs text-sm ${active.sender === "therapist" ? "bg-teal-600 text-white ml-auto rounded-tr-none" : "bg-slate-50 rounded-tl-none"}`}>
+                      {active.content}
                     </div>
                   </div>
                   <div className="p-4 border-t border-slate-100 flex gap-2">
                     <input value={reply} onChange={e => setReply(e.target.value)} onKeyDown={e => e.key === "Enter" && sendReply()} placeholder="Escribe tu respuesta..."
                       className="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300" />
-                    <button onClick={sendReply} className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors">Enviar</button>
+                    <button onClick={sendReply} className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-xl text-sm font-medium">Enviar</button>
                   </div>
                 </>
               )}
@@ -493,21 +487,32 @@ function MessagesView({ user }) {
   );
 }
 
-// ─── MAIN APP ─────────────────────────────────────────────────────────────────
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("patients");
-  const [prescribePatient, setPrescribePatient] = useState(null);
+// ─── INVITE HANDLER ───────────────────────────────────────────────────────────
+function InviteHandler({ token, user }) {
+  const [status, setStatus] = useState("linking");
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => { setUser(session?.user ?? null); setLoading(false); });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user ?? null));
-    return () => subscription.unsubscribe();
-  }, []);
+    const linkAccount = async () => {
+      const { error } = await supabase
+        .from("patients")
+        .update({ user_id: user.id })
+        .eq("invite_token", token);
+      setStatus(error ? "error" : "success");
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+    };
+    linkAccount();
+  }, [token, user]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-400">Cargando...</div>;
-  if (!user) return <LoginView />;
+  if (status === "linking") return <div className="min-h-screen flex items-center justify-center text-slate-400">Vinculando tu cuenta...</div>;
+  if (status === "error") return <div className="min-h-screen flex items-center justify-center text-red-400">Error al vincular. Contacta a tu fisioterapeuta.</div>;
+  return <div className="min-h-screen flex items-center justify-center text-emerald-600 text-lg font-semibold">✓ ¡Cuenta vinculada! Recargando...</div>;
+}
+
+// ─── THERAPIST APP ────────────────────────────────────────────────────────────
+function TherapistApp({ user }) {
+  const [tab, setTab] = useState("patients");
+  const [prescribePatient, setPrescribePatient] = useState(null);
 
   const navItems = [
     { id: "patients", label: "Pacientes", icon: "👤" },
@@ -523,16 +528,15 @@ export default function App() {
             <div className="w-8 h-8 bg-teal-600 rounded-xl flex items-center justify-center text-white text-sm font-bold">F</div>
             <span style={{ fontFamily: "'Fraunces', serif" }} className="font-bold text-slate-800 text-lg">FisioApp</span>
           </div>
-          <button onClick={() => supabase.auth.signOut()} className="text-xs text-slate-400 hover:text-slate-600 transition-colors">Cerrar sesión</button>
+          <button onClick={() => supabase.auth.signOut()} className="text-xs text-slate-400 hover:text-slate-600">Cerrar sesión</button>
         </div>
       </header>
       <div className="max-w-5xl mx-auto px-4 pt-6">
         <div className="flex gap-1 bg-white rounded-2xl p-1 border border-slate-100 mb-6">
           {navItems.map(item => (
             <button key={item.id} onClick={() => { setTab(item.id); setPrescribePatient(null); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all ${tab === item.id ? "bg-teal-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-              <span>{item.icon}</span>
-              <span className="hidden sm:inline">{item.label}</span>
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all ${tab === item.id ? "bg-teal-600 text-white" : "text-slate-500 hover:text-slate-700"}`}>
+              <span>{item.icon}</span><span className="hidden sm:inline">{item.label}</span>
             </button>
           ))}
         </div>
@@ -545,4 +549,51 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [isPatient, setIsPatient] = useState(false);
+  const [inviteToken, setInviteToken] = useState(null);
+  const [inviteHandled, setInviteHandled] = useState(false);
+
+  useEffect(() => {
+    // Check for invite token in URL
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("invite");
+    if (token) setInviteToken(token);
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (user) checkRole();
+  }, [user]);
+
+  const checkRole = async () => {
+    // Check if this user is a patient
+    const { data } = await supabase.from("patients").select("id").eq("user_id", user.id).single();
+    setIsPatient(!!data);
+  };
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-400">Cargando...</div>;
+  if (!user) return <LoginView />;
+
+  // Handle invite link after login
+  if (inviteToken && !inviteHandled) {
+    return <InviteHandler token={inviteToken} user={user} onDone={() => { setInviteHandled(true); checkRole(); }} />;
+  }
+
+  // Route based on role
+  if (isPatient) return <PatientApp user={user} />;
+  return <TherapistApp user={user} />;
 }
