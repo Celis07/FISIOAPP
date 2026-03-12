@@ -16,7 +16,6 @@ function StatusBadge({ status }) {
   const styles = {
     activo: "bg-emerald-50 text-emerald-700 border border-emerald-200",
     pendiente: "bg-amber-50 text-amber-700 border border-amber-200",
-    confirmada: "bg-emerald-50 text-emerald-700 border border-emerald-200",
     Presencial: "bg-blue-50 text-blue-700 border border-blue-200",
     Videollamada: "bg-violet-50 text-violet-700 border border-violet-200",
   };
@@ -78,17 +77,11 @@ function LoginView() {
   );
 }
 
-// ─── INVITE MODAL ────────────────────────────────────────────────────────────
+// ─── INVITE MODAL ─────────────────────────────────────────────────────────────
 function InviteModal({ patient, onClose }) {
   const [copied, setCopied] = useState(false);
   const link = `${window.location.origin}?invite=${patient.invite_token}`;
-
-  const copy = () => {
-    navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
+  const copy = () => { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2000); };
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
@@ -105,30 +98,131 @@ function InviteModal({ patient, onClose }) {
             className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors ${copied ? "bg-emerald-500 text-white" : "bg-teal-600 hover:bg-teal-700 text-white"}`}>
             {copied ? "✓ Copiado!" : "📋 Copiar link"}
           </button>
-          <button onClick={onClose} className="w-full py-2.5 rounded-xl text-sm font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">
-            Cerrar
-          </button>
+          <button onClick={onClose} className="w-full py-2.5 rounded-xl text-sm font-medium text-slate-500 bg-slate-100 hover:bg-slate-200">Cerrar</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── PATIENT PROFILE ─────────────────────────────────────────────────────────
-function PatientProfile({ patient, user, onBack }) {
+// ─── PATIENT PROGRESS (THERAPIST VIEW) ────────────────────────────────────────
+function PatientProgressView({ patient }) {
+  const [logs, setLogs] = useState([]);
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetch = async () => {
+      const { data: logData } = await supabase
+        .from("exercise_logs").select("*").eq("patient_id", patient.id);
+      const { data: presData } = await supabase
+        .from("prescriptions").select("*").eq("patient_id", patient.id)
+        .order("created_at", { ascending: false });
+      setLogs(logData || []);
+      setPrescriptions(presData || []);
+      setLoading(false);
+    };
+    fetch();
+  }, [patient.id]);
+
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d;
+  });
+
+  const logsPerDay = last7Days.map(day => ({
+    day,
+    count: logs.filter(l => new Date(l.completed_at).toDateString() === day.toDateString()).length
+  }));
+
+  const maxCount = Math.max(...logsPerDay.map(d => d.count), 1);
+
+  let streak = 0;
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    if (logs.some(l => new Date(l.completed_at).toDateString() === d.toDateString())) streak++;
+    else if (i > 0) break;
+  }
+
+  const todayLogs = logs.filter(l => new Date(l.completed_at).toDateString() === new Date().toDateString()).length;
+  const latestPres = prescriptions[0];
+  const totalEx = latestPres?.exercises?.length || 0;
+  const adherence = totalEx > 0 ? Math.round((todayLogs / totalEx) * 100) : 0;
+  const dayNames = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+  if (loading) return <div className="py-8 text-center text-slate-400 text-sm">Cargando progreso...</div>;
+
+  return (
+    <div className="border-t border-slate-100 p-4 bg-slate-50 rounded-b-2xl">
+      {logs.length === 0 ? (
+        <p className="text-center text-slate-400 text-sm py-4">Este paciente aún no ha completado ejercicios</p>
+      ) : (
+        <>
+          {/* Mini stats */}
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
+              <p className="text-2xl font-bold text-teal-600">{streak}</p>
+              <p className="text-xs text-slate-400 mt-0.5">🔥 Racha</p>
+            </div>
+            <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
+              <p className="text-2xl font-bold text-blue-600">{logs.length}</p>
+              <p className="text-xs text-slate-400 mt-0.5">✅ Total</p>
+            </div>
+            <div className="bg-white rounded-xl p-3 text-center border border-slate-100">
+              <p className="text-2xl font-bold text-violet-600">{adherence}%</p>
+              <p className="text-xs text-slate-400 mt-0.5">📅 Hoy</p>
+            </div>
+          </div>
+
+          {/* Mini bar chart */}
+          <div className="bg-white rounded-xl p-3 border border-slate-100 mb-4">
+            <p className="text-xs text-slate-500 font-medium mb-3">Últimos 7 días</p>
+            <div className="flex items-end justify-between gap-1 h-16">
+              {logsPerDay.map(({ day, count }, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="w-full rounded-t-md transition-all"
+                    style={{
+                      height: `${count > 0 ? Math.max((count / maxCount) * 52, 6) : 4}px`,
+                      backgroundColor: day.toDateString() === new Date().toDateString() ? "#0d9488" : count > 0 ? "#99f6e4" : "#f1f5f9"
+                    }} />
+                  <span className="text-xs text-slate-400">{dayNames[day.getDay()]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Consistency dots */}
+          <div className="bg-white rounded-xl p-3 border border-slate-100">
+            <p className="text-xs text-slate-500 font-medium mb-2">Consistencia (30 días)</p>
+            <div className="flex flex-wrap gap-1">
+              {Array.from({ length: 30 }, (_, i) => {
+                const d = new Date(); d.setDate(d.getDate() - (29 - i));
+                const count = logs.filter(l => new Date(l.completed_at).toDateString() === d.toDateString()).length;
+                return (
+                  <div key={i} title={`${d.toLocaleDateString("es-CO")}: ${count} ejercicios`}
+                    className={`w-5 h-5 rounded-sm ${count === 0 ? "bg-slate-100" : count <= 2 ? "bg-teal-100" : count <= 5 ? "bg-teal-300" : "bg-teal-500"}`} />
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── PATIENT PROFILE ──────────────────────────────────────────────────────────
+function PatientProfile({ patient, user, onBack, onPrescribe }) {
   const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [activePres, setActivePres] = useState(null);
+  const [activeTab, setActiveTab] = useState("plans");
 
   useEffect(() => { fetchPrescriptions(); }, []);
 
   const fetchPrescriptions = async () => {
-    const { data } = await supabase
-      .from("prescriptions")
-      .select("*")
-      .eq("patient_id", patient.id)
-      .order("created_at", { ascending: false });
+    const { data } = await supabase.from("prescriptions").select("*")
+      .eq("patient_id", patient.id).order("created_at", { ascending: false });
     setPrescriptions(data || []);
     setLoading(false);
   };
@@ -138,10 +232,9 @@ function PatientProfile({ patient, user, onBack }) {
   return (
     <div>
       {showInvite && <InviteModal patient={patient} onClose={() => setShowInvite(false)} />}
+      <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-slate-700 mb-5 text-sm">← Volver</button>
 
-      <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-slate-700 mb-5 text-sm transition-colors">← Volver</button>
-
-      {/* Profile header */}
+      {/* Header */}
       <div className="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
         <div className="flex items-center gap-4">
           <Avatar initials={initials} size="xl" />
@@ -150,53 +243,58 @@ function PatientProfile({ patient, user, onBack }) {
             <p className="text-slate-500 text-sm mt-0.5">{patient.condition || "Sin diagnóstico"}</p>
             {patient.age && <p className="text-slate-400 text-xs mt-0.5">{patient.age} años</p>}
             {patient.email && <p className="text-slate-400 text-xs mt-0.5">✉️ {patient.email}</p>}
-            <div className="flex gap-2 mt-2">
+            <div className="flex gap-2 mt-2 flex-wrap">
               <StatusBadge status={patient.status} />
               {patient.user_id
                 ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✓ App activa</span>
-                : <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Sin acceso</span>
-              }
+                : <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Sin acceso</span>}
             </div>
           </div>
         </div>
         <div className="flex gap-2 mt-4">
+          <button onClick={() => onPrescribe(patient)}
+            className="flex-1 bg-teal-600 hover:bg-teal-700 text-white text-sm px-3 py-2 rounded-xl font-medium transition-colors">
+            💪 Prescribir
+          </button>
           <button onClick={() => setShowInvite(true)}
             className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm px-3 py-2 rounded-xl font-medium transition-colors">
-            🔗 Invitar a la app
+            🔗 Invitar
           </button>
         </div>
       </div>
 
-      {/* Prescriptions */}
-      <h3 style={{ fontFamily: "'Fraunces', serif" }} className="font-bold text-slate-800 text-lg mb-3">
-        Planes prescritos ({prescriptions.length})
-      </h3>
+      {/* Tabs */}
+      <div className="flex gap-1 bg-white rounded-2xl p-1 border border-slate-100 mb-4">
+        {[{ id: "plans", label: "Planes", icon: "📋" }, { id: "progress", label: "Progreso", icon: "📊" }].map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === t.id ? "bg-teal-600 text-white" : "text-slate-500 hover:text-slate-700"}`}>
+            <span>{t.icon}</span><span>{t.label}</span>
+          </button>
+        ))}
+      </div>
 
-      {loading ? <div className="text-center py-8 text-slate-400">Cargando planes...</div>
+      {/* Plans */}
+      {activeTab === "plans" && (
+        loading ? <div className="text-center py-8 text-slate-400">Cargando planes...</div>
         : prescriptions.length === 0 ? (
           <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-slate-100">
-            <p className="text-3xl mb-2">📋</p>
-            <p>No hay planes prescritos aún</p>
+            <p className="text-3xl mb-2">📋</p><p>No hay planes prescritos aún</p>
           </div>
         ) : (
           <div className="grid gap-3">
             {prescriptions.map((pres, i) => (
               <div key={pres.id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-                <button
-                  onClick={() => setActivePres(activePres === pres.id ? null : pres.id)}
+                <button onClick={() => setActivePres(activePres === pres.id ? null : pres.id)}
                   className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors text-left">
                   <div>
-                    <p className="font-semibold text-slate-800 text-sm">
-                      {i === 0 ? "🟢 Plan actual" : `Plan #${prescriptions.length - i}`}
-                    </p>
+                    <p className="font-semibold text-slate-800 text-sm">{i === 0 ? "🟢 Plan actual" : `Plan #${prescriptions.length - i}`}</p>
                     <p className="text-xs text-slate-400 mt-0.5">
                       {new Date(pres.created_at).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}
                       {" · "}{pres.exercises?.length || 0} ejercicios
                     </p>
                   </div>
-                  <span className="text-slate-400 text-lg">{activePres === pres.id ? "▲" : "▼"}</span>
+                  <span className="text-slate-400">{activePres === pres.id ? "▲" : "▼"}</span>
                 </button>
-
                 {activePres === pres.id && (
                   <div className="border-t border-slate-100 p-4">
                     {pres.note && (
@@ -224,7 +322,15 @@ function PatientProfile({ patient, user, onBack }) {
               </div>
             ))}
           </div>
-        )}
+        )
+      )}
+
+      {/* Progress */}
+      {activeTab === "progress" && (
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+          <PatientProgressView patient={patient} />
+        </div>
+      )}
     </div>
   );
 }
@@ -248,19 +354,13 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
   const addPatient = async () => {
     if (!form.name) return;
     const token = crypto.randomUUID();
-    const { data, error } = await supabase
-      .from("patients")
+    const { data, error } = await supabase.from("patients")
       .insert({ ...form, therapist_id: user.id, age: parseInt(form.age) || null, invite_token: token })
-      .select()
-      .single();
-
+      .select().single();
     setForm({ name: "", age: "", condition: "", next_session: "", email: "" });
     setShowForm(false);
     fetchPatients();
-
-    if (data && !error) {
-      setShowInvite(data);
-    }
+    if (data && !error) setShowInvite(data);
   };
 
   const initials = (name) => name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -294,18 +394,14 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
           <input value={form.condition} onChange={e => setForm({ ...form, condition: e.target.value })} placeholder="Diagnóstico / condición"
             className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
           <div className="col-span-2 flex gap-2">
-            <button onClick={addPatient} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-700 transition-colors">
-              Guardar y generar link
-            </button>
+            <button onClick={addPatient} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-700">Guardar y generar link</button>
             <button onClick={() => setShowForm(false)} className="bg-white text-slate-500 px-4 py-2 rounded-xl text-sm font-medium border border-slate-200">Cancelar</button>
           </div>
         </div>
       )}
 
-      <div className="mb-4">
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar paciente..."
-          className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
-      </div>
+      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar paciente..."
+        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white mb-4" />
 
       {loading ? <div className="text-center py-12 text-slate-400">Cargando pacientes...</div>
         : filtered.length === 0 ? (
@@ -313,8 +409,7 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
         ) : (
           <div className="grid gap-3">
             {filtered.map(p => (
-              <div key={p.id}
-                onClick={() => onViewProfile(p)}
+              <div key={p.id} onClick={() => onViewProfile(p)}
                 className="bg-white rounded-2xl border border-slate-100 p-4 hover:shadow-md transition-shadow cursor-pointer">
                 <div className="flex items-center gap-4">
                   <Avatar initials={initials(p.name)} size="lg" />
@@ -328,15 +423,9 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
                     {p.email && <p className="text-xs text-slate-400 mt-0.5">{p.email}</p>}
                   </div>
                   <div className="flex gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => onPrescribe(p)}
-                      className="bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors">
-                      Prescribir
-                    </button>
+                    <button onClick={() => onPrescribe(p)} className="bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors">Prescribir</button>
                     {p.invite_token && (
-                      <button onClick={() => setShowInvite(p)}
-                        className="bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors">
-                        🔗
-                      </button>
+                      <button onClick={() => setShowInvite(p)} className="bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors">🔗</button>
                     )}
                   </div>
                 </div>
@@ -375,13 +464,10 @@ function PrescribeView({ user, patient, onBack }) {
     if (!selected.length) return;
     setLoading(true);
     const { error } = await supabase.from("prescriptions").insert({
-      patient_id: patient.id,
-      therapist_id: user.id,
-      exercises: selected,
-      note,
+      patient_id: patient.id, therapist_id: user.id, exercises: selected, note,
     });
     if (!error) setSubmitted(true);
-    else alert("Error al guardar: " + error.message);
+    else alert("Error: " + error.message);
     setLoading(false);
   };
 
@@ -392,7 +478,7 @@ function PrescribeView({ user, patient, onBack }) {
       <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4 text-3xl">✓</div>
       <h3 style={{ fontFamily: "'Fraunces', serif" }} className="text-2xl font-bold text-slate-800 mb-2">¡Plan guardado!</h3>
       <p className="text-slate-500 mb-6">Plan prescrito a <strong>{patient.name}</strong> con {selected.length} ejercicios.</p>
-      <button onClick={onBack} className="bg-teal-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-teal-700 transition-colors">Volver a pacientes</button>
+      <button onClick={onBack} className="bg-teal-600 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-teal-700">Volver</button>
     </div>
   );
 
@@ -406,7 +492,6 @@ function PrescribeView({ user, patient, onBack }) {
           <p className="text-slate-500 text-sm">{patient.name} · {patient.condition || "Sin diagnóstico"}</p>
         </div>
       </div>
-
       <div className="grid lg:grid-cols-2 gap-6">
         <div>
           <h3 className="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wider">Biblioteca ({EXERCISES.length} ejercicios)</h3>
@@ -445,13 +530,10 @@ function PrescribeView({ user, patient, onBack }) {
             {filtered.length === 0 && <div className="text-center py-8 text-slate-400 text-sm">No se encontraron ejercicios</div>}
           </div>
         </div>
-
         <div>
           <h3 className="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wider">Plan ({selected.length} ejercicios)</h3>
           {selected.length === 0 ? (
-            <div className="bg-slate-50 rounded-xl p-8 text-center text-slate-400 text-sm border-2 border-dashed border-slate-200">
-              Selecciona ejercicios de la biblioteca
-            </div>
+            <div className="bg-slate-50 rounded-xl p-8 text-center text-slate-400 text-sm border-2 border-dashed border-slate-200">Selecciona ejercicios</div>
           ) : (
             <div className="grid gap-2 max-h-[380px] overflow-y-auto pr-1 mb-3">
               {selected.map((ex, i) => (
@@ -459,10 +541,10 @@ function PrescribeView({ user, patient, onBack }) {
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex-1 min-w-0">
                       <span className="text-xs text-teal-600 font-medium">#{i + 1}</span>
-                      <p className="font-medium text-slate-800 text-sm leading-tight">{ex.name}</p>
+                      <p className="font-medium text-slate-800 text-sm">{ex.name}</p>
                       <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">{ex.category}</span>
                     </div>
-                    <button onClick={() => removeExercise(ex.id)} className="text-slate-300 hover:text-red-400 text-xl leading-none flex-shrink-0">×</button>
+                    <button onClick={() => removeExercise(ex.id)} className="text-slate-300 hover:text-red-400 text-xl leading-none">×</button>
                   </div>
                   <div className="flex gap-2">
                     <div className="flex-1">
@@ -641,20 +723,15 @@ function MessagesView({ user }) {
 // ─── INVITE HANDLER ───────────────────────────────────────────────────────────
 function InviteHandler({ token, user }) {
   const [status, setStatus] = useState("linking");
-
   useEffect(() => {
-    const linkAccount = async () => {
-      const { error } = await supabase
-        .from("patients")
-        .update({ user_id: user.id })
-        .eq("invite_token", token);
+    const link = async () => {
+      const { error } = await supabase.from("patients").update({ user_id: user.id }).eq("invite_token", token);
       window.history.replaceState({}, "", window.location.pathname);
       setStatus(error ? "error" : "success");
       if (!error) setTimeout(() => window.location.reload(), 1500);
     };
-    linkAccount();
+    link();
   }, [token, user]);
-
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="text-center">
@@ -671,12 +748,6 @@ function TherapistApp({ user }) {
   const [tab, setTab] = useState("patients");
   const [prescribePatient, setPrescribePatient] = useState(null);
   const [profilePatient, setProfilePatient] = useState(null);
-
-  const navItems = [
-    { id: "patients", label: "Pacientes", icon: "👤" },
-    { id: "agenda", label: "Agenda", icon: "📅" },
-    { id: "messages", label: "Mensajes", icon: "💬" },
-  ];
 
   const handleViewProfile = (p) => { setProfilePatient(p); setPrescribePatient(null); };
   const handlePrescribe = (p) => { setPrescribePatient(p); setProfilePatient(null); };
@@ -695,7 +766,11 @@ function TherapistApp({ user }) {
       </header>
       <div className="max-w-5xl mx-auto px-4 pt-6">
         <div className="flex gap-1 bg-white rounded-2xl p-1 border border-slate-100 mb-6">
-          {navItems.map(item => (
+          {[
+            { id: "patients", label: "Pacientes", icon: "👤" },
+            { id: "agenda", label: "Agenda", icon: "📅" },
+            { id: "messages", label: "Mensajes", icon: "💬" },
+          ].map(item => (
             <button key={item.id} onClick={() => { setTab(item.id); handleBack(); }}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all ${tab === item.id ? "bg-teal-600 text-white" : "text-slate-500 hover:text-slate-700"}`}>
               <span>{item.icon}</span><span className="hidden sm:inline">{item.label}</span>
@@ -720,7 +795,7 @@ function TherapistApp({ user }) {
   );
 }
 
-// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -733,18 +808,13 @@ export default function App() {
     if (token) setInviteToken(token);
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
+      setUser(session?.user ?? null); setLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user ?? null));
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (user) checkRole();
-  }, [user]);
+  useEffect(() => { if (user) checkRole(); }, [user]);
 
   const checkRole = async () => {
     const { data } = await supabase.from("patients").select("id").eq("user_id", user.id).maybeSingle();
