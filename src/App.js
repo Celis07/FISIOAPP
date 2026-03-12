@@ -4,7 +4,7 @@ import { EXERCISES, CATEGORIES } from "./exercises";
 import PatientApp from "./PatientApp";
 
 function Avatar({ initials, size = "md" }) {
-  const sizes = { sm: "w-8 h-8 text-xs", md: "w-10 h-10 text-sm", lg: "w-14 h-14 text-base" };
+  const sizes = { sm: "w-8 h-8 text-xs", md: "w-10 h-10 text-sm", lg: "w-14 h-14 text-base", xl: "w-20 h-20 text-xl" };
   return (
     <div className={`${sizes[size]} bg-teal-100 text-teal-700 rounded-full flex items-center justify-center font-bold flex-shrink-0`}>
       {initials}
@@ -78,15 +78,165 @@ function LoginView() {
   );
 }
 
-// ─── PATIENTS ─────────────────────────────────────────────────────────────────
-function PatientsView({ user, onPrescribe }) {
+// ─── INVITE MODAL ────────────────────────────────────────────────────────────
+function InviteModal({ patient, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const link = `${window.location.origin}?invite=${patient.invite_token}`;
+
+  const copy = () => {
+    navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
+        <div className="text-center mb-4">
+          <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-3">🔗</div>
+          <h3 style={{ fontFamily: "'Fraunces', serif" }} className="font-bold text-slate-800 text-lg">Link de invitación</h3>
+          <p className="text-slate-500 text-sm mt-1">Envíale este link a <strong>{patient.name}</strong></p>
+        </div>
+        <div className="bg-slate-50 rounded-xl p-3 mb-4 border border-slate-200">
+          <p className="text-xs text-slate-600 break-all">{link}</p>
+        </div>
+        <div className="grid gap-2">
+          <button onClick={copy}
+            className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors ${copied ? "bg-emerald-500 text-white" : "bg-teal-600 hover:bg-teal-700 text-white"}`}>
+            {copied ? "✓ Copiado!" : "📋 Copiar link"}
+          </button>
+          <button onClick={onClose} className="w-full py-2.5 rounded-xl text-sm font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PATIENT PROFILE ─────────────────────────────────────────────────────────
+function PatientProfile({ patient, user, onBack }) {
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showInvite, setShowInvite] = useState(false);
+  const [activePres, setActivePres] = useState(null);
+
+  useEffect(() => { fetchPrescriptions(); }, []);
+
+  const fetchPrescriptions = async () => {
+    const { data } = await supabase
+      .from("prescriptions")
+      .select("*")
+      .eq("patient_id", patient.id)
+      .order("created_at", { ascending: false });
+    setPrescriptions(data || []);
+    setLoading(false);
+  };
+
+  const initials = patient.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+
+  return (
+    <div>
+      {showInvite && <InviteModal patient={patient} onClose={() => setShowInvite(false)} />}
+
+      <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-slate-700 mb-5 text-sm transition-colors">← Volver</button>
+
+      {/* Profile header */}
+      <div className="bg-white rounded-2xl border border-slate-100 p-5 mb-4">
+        <div className="flex items-center gap-4">
+          <Avatar initials={initials} size="xl" />
+          <div className="flex-1">
+            <h2 style={{ fontFamily: "'Fraunces', serif" }} className="text-2xl font-bold text-slate-800">{patient.name}</h2>
+            <p className="text-slate-500 text-sm mt-0.5">{patient.condition || "Sin diagnóstico"}</p>
+            {patient.age && <p className="text-slate-400 text-xs mt-0.5">{patient.age} años</p>}
+            {patient.email && <p className="text-slate-400 text-xs mt-0.5">✉️ {patient.email}</p>}
+            <div className="flex gap-2 mt-2">
+              <StatusBadge status={patient.status} />
+              {patient.user_id
+                ? <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✓ App activa</span>
+                : <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Sin acceso</span>
+              }
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button onClick={() => setShowInvite(true)}
+            className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 text-sm px-3 py-2 rounded-xl font-medium transition-colors">
+            🔗 Invitar a la app
+          </button>
+        </div>
+      </div>
+
+      {/* Prescriptions */}
+      <h3 style={{ fontFamily: "'Fraunces', serif" }} className="font-bold text-slate-800 text-lg mb-3">
+        Planes prescritos ({prescriptions.length})
+      </h3>
+
+      {loading ? <div className="text-center py-8 text-slate-400">Cargando planes...</div>
+        : prescriptions.length === 0 ? (
+          <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-slate-100">
+            <p className="text-3xl mb-2">📋</p>
+            <p>No hay planes prescritos aún</p>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {prescriptions.map((pres, i) => (
+              <div key={pres.id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
+                <button
+                  onClick={() => setActivePres(activePres === pres.id ? null : pres.id)}
+                  className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors text-left">
+                  <div>
+                    <p className="font-semibold text-slate-800 text-sm">
+                      {i === 0 ? "🟢 Plan actual" : `Plan #${prescriptions.length - i}`}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {new Date(pres.created_at).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}
+                      {" · "}{pres.exercises?.length || 0} ejercicios
+                    </p>
+                  </div>
+                  <span className="text-slate-400 text-lg">{activePres === pres.id ? "▲" : "▼"}</span>
+                </button>
+
+                {activePres === pres.id && (
+                  <div className="border-t border-slate-100 p-4">
+                    {pres.note && (
+                      <div className="bg-teal-50 rounded-xl p-3 mb-3">
+                        <p className="text-xs text-teal-600 font-medium mb-0.5">📝 Nota</p>
+                        <p className="text-sm text-teal-800">{pres.note}</p>
+                      </div>
+                    )}
+                    <div className="grid gap-2">
+                      {pres.exercises?.map((ex, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2">
+                          <div>
+                            <p className="text-sm font-medium text-slate-800">{ex.name}</p>
+                            <p className="text-xs text-slate-500">{ex.category}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-bold text-teal-600">{ex.sets} series</p>
+                            <p className="text-xs text-slate-400">{ex.reps}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+    </div>
+  );
+}
+
+// ─── PATIENTS LIST ────────────────────────────────────────────────────────────
+function PatientsView({ user, onPrescribe, onViewProfile }) {
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [showInvite, setShowInvite] = useState(null);
   const [form, setForm] = useState({ name: "", age: "", condition: "", next_session: "", email: "" });
-  const [inviteLink, setInviteLink] = useState(null);
-  const [invitePatient, setInvitePatient] = useState(null);
 
   useEffect(() => { fetchPatients(); }, []);
 
@@ -98,20 +248,19 @@ function PatientsView({ user, onPrescribe }) {
   const addPatient = async () => {
     if (!form.name) return;
     const token = crypto.randomUUID();
-    const { data } = await supabase.from("patients").insert({
-      ...form, therapist_id: user.id, age: parseInt(form.age) || null, invite_token: token
-    }).select().single();
+    const { data, error } = await supabase
+      .from("patients")
+      .insert({ ...form, therapist_id: user.id, age: parseInt(form.age) || null, invite_token: token })
+      .select()
+      .single();
+
     setForm({ name: "", age: "", condition: "", next_session: "", email: "" });
     setShowForm(false);
-    if (data) generateInviteLink(data);
     fetchPatients();
-  };
 
-  const generateInviteLink = (patient) => {
-    const token = patient.invite_token;
-    const link = `${window.location.origin}?invite=${token}`;
-    setInviteLink(link);
-    setInvitePatient(patient);
+    if (data && !error) {
+      setShowInvite(data);
+    }
   };
 
   const initials = (name) => name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -119,25 +268,7 @@ function PatientsView({ user, onPrescribe }) {
 
   return (
     <div>
-      {inviteLink && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
-            <h3 style={{ fontFamily: "'Fraunces', serif" }} className="font-bold text-slate-800 text-lg mb-1">¡Paciente creado!</h3>
-            <p className="text-slate-500 text-sm mb-4">Envíale este link a <strong>{invitePatient?.name}</strong> para que acceda a su plan:</p>
-            <div className="bg-slate-50 rounded-xl p-3 mb-4 break-all text-xs text-slate-600 border border-slate-200">{inviteLink}</div>
-            <div className="flex gap-2">
-              <button onClick={() => { navigator.clipboard.writeText(inviteLink); }}
-                className="flex-1 bg-teal-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-teal-700 transition-colors">
-                📋 Copiar link
-              </button>
-              <button onClick={() => { setInviteLink(null); setInvitePatient(null); }}
-                className="flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-200 transition-colors">
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showInvite && <InviteModal patient={showInvite} onClose={() => setShowInvite(null)} />}
 
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -163,8 +294,10 @@ function PatientsView({ user, onPrescribe }) {
           <input value={form.condition} onChange={e => setForm({ ...form, condition: e.target.value })} placeholder="Diagnóstico / condición"
             className="col-span-2 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
           <div className="col-span-2 flex gap-2">
-            <button onClick={addPatient} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-700 transition-colors">Guardar y generar link</button>
-            <button onClick={() => setShowForm(false)} className="bg-white text-slate-500 px-4 py-2 rounded-xl text-sm font-medium border border-slate-200 hover:bg-slate-50 transition-colors">Cancelar</button>
+            <button onClick={addPatient} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-700 transition-colors">
+              Guardar y generar link
+            </button>
+            <button onClick={() => setShowForm(false)} className="bg-white text-slate-500 px-4 py-2 rounded-xl text-sm font-medium border border-slate-200">Cancelar</button>
           </div>
         </div>
       )}
@@ -180,22 +313,30 @@ function PatientsView({ user, onPrescribe }) {
         ) : (
           <div className="grid gap-3">
             {filtered.map(p => (
-              <div key={p.id} className="bg-white rounded-2xl border border-slate-100 p-4 hover:shadow-md transition-shadow">
+              <div key={p.id}
+                onClick={() => onViewProfile(p)}
+                className="bg-white rounded-2xl border border-slate-100 p-4 hover:shadow-md transition-shadow cursor-pointer">
                 <div className="flex items-center gap-4">
                   <Avatar initials={initials(p.name)} size="lg" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-slate-800">{p.name}</span>
                       <StatusBadge status={p.status} />
-                      {p.user_id && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✓ Activo</span>}
+                      {p.user_id && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">✓ App activa</span>}
                     </div>
                     <p className="text-sm text-slate-500 mt-0.5">{p.condition || "Sin diagnóstico"}{p.age ? ` · ${p.age} años` : ""}</p>
                     {p.email && <p className="text-xs text-slate-400 mt-0.5">{p.email}</p>}
                   </div>
-                  <div className="flex gap-2 flex-shrink-0 flex-col items-end">
-                    <button onClick={() => onPrescribe(p)} className="bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors">Prescribir</button>
+                  <div className="flex gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => onPrescribe(p)}
+                      className="bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors">
+                      Prescribir
+                    </button>
                     {p.invite_token && (
-                      <button onClick={() => generateInviteLink(p)} className="bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors">🔗 Link</button>
+                      <button onClick={() => setShowInvite(p)}
+                        className="bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors">
+                        🔗
+                      </button>
                     )}
                   </div>
                 </div>
@@ -218,7 +359,8 @@ function PrescribeView({ user, patient, onBack }) {
 
   const filtered = EXERCISES.filter(ex => {
     const matchCat = category === "Todos" || ex.category === category;
-    const matchSearch = ex.name.toLowerCase().includes(search.toLowerCase()) || ex.description.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = ex.name.toLowerCase().includes(search.toLowerCase()) ||
+      ex.description.toLowerCase().includes(search.toLowerCase());
     return matchCat && matchSearch;
   });
 
@@ -226,15 +368,21 @@ function PrescribeView({ user, patient, onBack }) {
     if (selected.find(e => e.id === ex.id)) return;
     setSelected(prev => [...prev, { ...ex, sets: ex.defaultSets, reps: ex.defaultReps }]);
   };
-
   const removeExercise = (id) => setSelected(prev => prev.filter(e => e.id !== id));
   const updateExercise = (id, field, value) => setSelected(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
 
   const send = async () => {
     if (!selected.length) return;
     setLoading(true);
-    await supabase.from("prescriptions").insert({ patient_id: patient.id, therapist_id: user.id, exercises: selected, note });
-    setSubmitted(true); setLoading(false);
+    const { error } = await supabase.from("prescriptions").insert({
+      patient_id: patient.id,
+      therapist_id: user.id,
+      exercises: selected,
+      note,
+    });
+    if (!error) setSubmitted(true);
+    else alert("Error al guardar: " + error.message);
+    setLoading(false);
   };
 
   const initials = patient.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
@@ -250,7 +398,7 @@ function PrescribeView({ user, patient, onBack }) {
 
   return (
     <div>
-      <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-slate-700 mb-4 text-sm transition-colors">← Volver</button>
+      <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-slate-700 mb-4 text-sm">← Volver</button>
       <div className="flex items-center gap-3 mb-5">
         <Avatar initials={initials} size="lg" />
         <div>
@@ -258,6 +406,7 @@ function PrescribeView({ user, patient, onBack }) {
           <p className="text-slate-500 text-sm">{patient.name} · {patient.condition || "Sin diagnóstico"}</p>
         </div>
       </div>
+
       <div className="grid lg:grid-cols-2 gap-6">
         <div>
           <h3 className="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wider">Biblioteca ({EXERCISES.length} ejercicios)</h3>
@@ -300,9 +449,11 @@ function PrescribeView({ user, patient, onBack }) {
         <div>
           <h3 className="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wider">Plan ({selected.length} ejercicios)</h3>
           {selected.length === 0 ? (
-            <div className="bg-slate-50 rounded-xl p-8 text-center text-slate-400 text-sm border-2 border-dashed border-slate-200">Selecciona ejercicios de la biblioteca</div>
+            <div className="bg-slate-50 rounded-xl p-8 text-center text-slate-400 text-sm border-2 border-dashed border-slate-200">
+              Selecciona ejercicios de la biblioteca
+            </div>
           ) : (
-            <div className="grid gap-2 max-h-[380px] overflow-y-auto pr-1 mb-4">
+            <div className="grid gap-2 max-h-[380px] overflow-y-auto pr-1 mb-3">
               {selected.map((ex, i) => (
                 <div key={ex.id} className="bg-white border border-slate-200 rounded-xl p-3">
                   <div className="flex items-start justify-between gap-2 mb-2">
@@ -311,7 +462,7 @@ function PrescribeView({ user, patient, onBack }) {
                       <p className="font-medium text-slate-800 text-sm leading-tight">{ex.name}</p>
                       <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">{ex.category}</span>
                     </div>
-                    <button onClick={() => removeExercise(ex.id)} className="text-slate-300 hover:text-red-400 transition-colors text-xl leading-none flex-shrink-0">×</button>
+                    <button onClick={() => removeExercise(ex.id)} className="text-slate-300 hover:text-red-400 text-xl leading-none flex-shrink-0">×</button>
                   </div>
                   <div className="flex gap-2">
                     <div className="flex-1">
@@ -387,7 +538,7 @@ function AgendaView({ user }) {
             <option>Presencial</option><option>Videollamada</option>
           </select>
           <div className="col-span-2 flex gap-2">
-            <button onClick={addAppointment} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-700 transition-colors">Guardar</button>
+            <button onClick={addAppointment} className="bg-teal-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-teal-700">Guardar</button>
             <button onClick={() => setShowForm(false)} className="bg-white text-slate-500 px-4 py-2 rounded-xl text-sm font-medium border border-slate-200">Cancelar</button>
           </div>
         </div>
@@ -497,28 +648,39 @@ function InviteHandler({ token, user }) {
         .from("patients")
         .update({ user_id: user.id })
         .eq("invite_token", token);
-      setStatus(error ? "error" : "success");
-      // Clean URL
       window.history.replaceState({}, "", window.location.pathname);
+      setStatus(error ? "error" : "success");
+      if (!error) setTimeout(() => window.location.reload(), 1500);
     };
     linkAccount();
   }, [token, user]);
 
-  if (status === "linking") return <div className="min-h-screen flex items-center justify-center text-slate-400">Vinculando tu cuenta...</div>;
-  if (status === "error") return <div className="min-h-screen flex items-center justify-center text-red-400">Error al vincular. Contacta a tu fisioterapeuta.</div>;
-  return <div className="min-h-screen flex items-center justify-center text-emerald-600 text-lg font-semibold">✓ ¡Cuenta vinculada! Recargando...</div>;
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="text-center">
+        {status === "linking" && <><div className="text-4xl mb-4">⏳</div><p className="text-slate-500">Vinculando tu cuenta...</p></>}
+        {status === "success" && <><div className="text-4xl mb-4">✅</div><p className="text-emerald-600 font-semibold">¡Cuenta vinculada! Cargando tu plan...</p></>}
+        {status === "error" && <><div className="text-4xl mb-4">⚠️</div><p className="text-red-500">Error al vincular. Contacta a tu fisioterapeuta.</p></>}
+      </div>
+    </div>
+  );
 }
 
 // ─── THERAPIST APP ────────────────────────────────────────────────────────────
 function TherapistApp({ user }) {
   const [tab, setTab] = useState("patients");
   const [prescribePatient, setPrescribePatient] = useState(null);
+  const [profilePatient, setProfilePatient] = useState(null);
 
   const navItems = [
     { id: "patients", label: "Pacientes", icon: "👤" },
     { id: "agenda", label: "Agenda", icon: "📅" },
     { id: "messages", label: "Mensajes", icon: "💬" },
   ];
+
+  const handleViewProfile = (p) => { setProfilePatient(p); setPrescribePatient(null); };
+  const handlePrescribe = (p) => { setPrescribePatient(p); setProfilePatient(null); };
+  const handleBack = () => { setPrescribePatient(null); setProfilePatient(null); };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -534,7 +696,7 @@ function TherapistApp({ user }) {
       <div className="max-w-5xl mx-auto px-4 pt-6">
         <div className="flex gap-1 bg-white rounded-2xl p-1 border border-slate-100 mb-6">
           {navItems.map(item => (
-            <button key={item.id} onClick={() => { setTab(item.id); setPrescribePatient(null); }}
+            <button key={item.id} onClick={() => { setTab(item.id); handleBack(); }}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all ${tab === item.id ? "bg-teal-600 text-white" : "text-slate-500 hover:text-slate-700"}`}>
               <span>{item.icon}</span><span className="hidden sm:inline">{item.label}</span>
             </button>
@@ -542,8 +704,15 @@ function TherapistApp({ user }) {
         </div>
       </div>
       <main className="max-w-5xl mx-auto px-4 pb-10">
-        {tab === "patients" && !prescribePatient && <PatientsView user={user} onPrescribe={setPrescribePatient} />}
-        {tab === "patients" && prescribePatient && <PrescribeView user={user} patient={prescribePatient} onBack={() => setPrescribePatient(null)} />}
+        {tab === "patients" && !prescribePatient && !profilePatient && (
+          <PatientsView user={user} onPrescribe={handlePrescribe} onViewProfile={handleViewProfile} />
+        )}
+        {tab === "patients" && prescribePatient && (
+          <PrescribeView user={user} patient={prescribePatient} onBack={handleBack} />
+        )}
+        {tab === "patients" && profilePatient && (
+          <PatientProfile patient={profilePatient} user={user} onBack={handleBack} onPrescribe={handlePrescribe} />
+        )}
         {tab === "agenda" && <AgendaView user={user} />}
         {tab === "messages" && <MessagesView user={user} />}
       </main>
@@ -557,10 +726,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isPatient, setIsPatient] = useState(false);
   const [inviteToken, setInviteToken] = useState(null);
-  const [inviteHandled, setInviteHandled] = useState(false);
 
   useEffect(() => {
-    // Check for invite token in URL
     const params = new URLSearchParams(window.location.search);
     const token = params.get("invite");
     if (token) setInviteToken(token);
@@ -580,20 +747,13 @@ export default function App() {
   }, [user]);
 
   const checkRole = async () => {
-    // Check if this user is a patient
-    const { data } = await supabase.from("patients").select("id").eq("user_id", user.id).single();
+    const { data } = await supabase.from("patients").select("id").eq("user_id", user.id).maybeSingle();
     setIsPatient(!!data);
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-400">Cargando...</div>;
   if (!user) return <LoginView />;
-
-  // Handle invite link after login
-  if (inviteToken && !inviteHandled) {
-    return <InviteHandler token={inviteToken} user={user} onDone={() => { setInviteHandled(true); checkRole(); }} />;
-  }
-
-  // Route based on role
+  if (inviteToken) return <InviteHandler token={inviteToken} user={user} />;
   if (isPatient) return <PatientApp user={user} />;
   return <TherapistApp user={user} />;
 }
