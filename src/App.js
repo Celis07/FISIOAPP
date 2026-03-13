@@ -3,71 +3,89 @@ import { supabase } from "./supabase";
 import { EXERCISES, CATEGORIES } from "./exercises";
 import PatientApp from "./PatientApp";
 
-const BLOCKS = ["Terapia", "Calentamiento / Activación", "Trabajo central"];
-const BLOCK_STYLES = {
-  "Terapia":                { bg: "bg-rose-50",   border: "border-rose-200",  text: "text-rose-700",  icon: "🩺" },
-  "Calentamiento / Activación": { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", icon: "🔥" },
-  "Trabajo central":        { bg: "bg-teal-50",   border: "border-teal-200",  text: "text-teal-700",  icon: "💪" },
+// ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
+const C = {
+  bg:      "#0f1117",
+  surface: "#1a1d27",
+  card:    "#21253a",
+  cardHov: "#262b42",
+  border:  "#2d3348",
+  accent:  "#26a69a",
+  accentL: "#80cbc4",
+  text:    "#e2e8f0",
+  muted:   "#8892a4",
+  dim:     "#4a5270",
+  danger:  "#f87171",
 };
 
-function Avatar({ initials, size = "md" }) {
-  const sizes = { sm: "w-8 h-8 text-xs", md: "w-10 h-10 text-sm", lg: "w-14 h-14 text-base", xl: "w-20 h-20 text-xl" };
+const BLOCKS = ["Terapia","Calentamiento / Activación","Trabajo central"];
+const BLOCK_META = {
+  "Terapia":                { color:"#f87171", bg:"rgba(248,113,113,0.12)", icon:"🩺" },
+  "Calentamiento / Activación": { color:"#fbbf24", bg:"rgba(251,191,36,0.12)",  icon:"🔥" },
+  "Trabajo central":        { color:"#34d399", bg:"rgba(52,211,153,0.12)",  icon:"💪" },
+  "Sin bloque":             { color:"#8892a4", bg:"rgba(136,146,164,0.1)",  icon:"📋" },
+};
+
+const inp = { background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"10px 14px", fontSize:14, color:C.text, outline:"none", width:"100%" };
+
+function Avatar({ name, size=40 }) {
+  const initials = name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase();
   return (
-    <div className={`${sizes[size]} bg-gradient-to-br from-teal-400 to-teal-600 text-white rounded-2xl flex items-center justify-center font-bold flex-shrink-0 shadow-sm`}>
+    <div style={{ width:size, height:size, borderRadius:size/3.5, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, fontSize:size/3.2, flexShrink:0 }}>
       {initials}
     </div>
   );
 }
 
-// ─── LOGIN ─────────────────────────────────────────────────────────────────────
+function Spinner() {
+  return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:48 }}>
+      <div style={{ width:32, height:32, border:`3px solid ${C.accent}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 1s linear infinite" }}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
+
+// ─── LOGIN ──────────────────────────────────────────────────────────────────
 function LoginView() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isRegister, setIsRegister] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [email,setEmail]       = useState("");
+  const [pass,setPass]         = useState("");
+  const [isReg,setIsReg]       = useState(false);
+  const [loading,setLoading]   = useState(false);
+  const [error,setError]       = useState("");
 
   const handle = async () => {
     setLoading(true); setError("");
-    const { error } = isRegister
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password });
-    if (error) setError(error.message);
+    const {error} = isReg
+      ? await supabase.auth.signUp({email,password:pass})
+      : await supabase.auth.signInWithPassword({email,password:pass});
+    if(error) setError(error.message);
     setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-slate-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-teal-700 rounded-3xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-lg">F</div>
-          <h1 style={{ fontFamily: "'Fraunces', serif" }} className="text-3xl font-bold text-slate-800">FisioApp</h1>
-          <p className="text-slate-400 text-sm mt-1">Tu plataforma de fisioterapia</p>
+    <div style={{ minHeight:"100vh", background:`radial-gradient(ellipse at top,#0d2020 0%,${C.bg} 60%)`, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ width:"100%", maxWidth:380 }}>
+        <div style={{ textAlign:"center", marginBottom:32 }}>
+          <div style={{ width:64, height:64, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, borderRadius:20, display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, fontWeight:700, color:"#fff", margin:"0 auto 16px", boxShadow:`0 0 40px rgba(38,166,154,0.3)` }}>F</div>
+          <h1 style={{ fontFamily:"'Fraunces',serif", fontSize:32, color:C.text, margin:0 }}>FisioApp</h1>
+          <p style={{ color:C.muted, fontSize:14, marginTop:6 }}>Tu plataforma de fisioterapia</p>
         </div>
-
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
-          <h2 className="font-bold text-slate-800 text-lg mb-4">{isRegister ? "Crear cuenta" : "Iniciar sesión"}</h2>
-          <div className="grid gap-3 mb-4">
-            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Correo electrónico" type="email"
-              className="border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-slate-50" />
-            <input value={password} onChange={e => setPassword(e.target.value)} placeholder="Contraseña" type="password"
-              className="border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-slate-50"
-              onKeyDown={e => e.key === "Enter" && handle()} />
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:24, padding:24 }}>
+          <h2 style={{ color:C.text, fontSize:18, fontWeight:600, marginBottom:20 }}>{isReg?"Crear cuenta":"Iniciar sesión"}</h2>
+          <div style={{ display:"grid", gap:12, marginBottom:16 }}>
+            <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Correo electrónico" type="email" style={inp}/>
+            <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="Contraseña" type="password" style={inp} onKeyDown={e=>e.key==="Enter"&&handle()}/>
           </div>
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-3">
-              <p className="text-red-600 text-xs">{error}</p>
-            </div>
-          )}
+          {error && <div style={{ background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.3)", borderRadius:10, padding:"8px 12px", color:C.danger, fontSize:13, marginBottom:12 }}>{error}</div>}
           <button onClick={handle} disabled={loading}
-            className="w-full bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white py-3 rounded-2xl font-semibold text-sm transition-all shadow-sm disabled:opacity-50">
-            {loading ? "Cargando..." : isRegister ? "Crear cuenta" : "Entrar"}
+            style={{ width:"100%", background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:14, padding:"13px", color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer", opacity:loading?0.7:1, boxShadow:`0 4px 20px rgba(38,166,154,0.25)` }}>
+            {loading?"Cargando...":isReg?"Crear cuenta":"Entrar"}
           </button>
-          <p className="text-center text-xs text-slate-400 mt-4">
-            {isRegister ? "¿Ya tienes cuenta?" : "¿No tienes cuenta?"}{" "}
-            <button onClick={() => setIsRegister(!isRegister)} className="text-teal-600 font-semibold hover:underline">
-              {isRegister ? "Inicia sesión" : "Regístrate"}
+          <p style={{ textAlign:"center", color:C.muted, fontSize:13, marginTop:16 }}>
+            {isReg?"¿Ya tienes cuenta?":"¿No tienes cuenta?"}{" "}
+            <button onClick={()=>setIsReg(!isReg)} style={{ color:C.accent, background:"none", border:"none", cursor:"pointer", fontWeight:600 }}>
+              {isReg?"Inicia sesión":"Regístrate"}
             </button>
           </p>
         </div>
@@ -76,109 +94,236 @@ function LoginView() {
   );
 }
 
-// ─── INVITE MODAL ──────────────────────────────────────────────────────────────
+// ─── INVITE MODAL ─────────────────────────────────────────────────────────────
 function InviteModal({ patient, onClose }) {
-  const [copied, setCopied] = useState(false);
+  const [copied,setCopied] = useState(false);
   const link = `${window.location.origin}?invite=${patient.invite_token}`;
-  const copy = () => { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+  const copy = () => { navigator.clipboard.writeText(link); setCopied(true); setTimeout(()=>setCopied(false),2000); };
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0">
-      <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
-        <div className="text-center mb-5">
-          <div className="w-14 h-14 bg-teal-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3">🔗</div>
-          <h3 style={{ fontFamily: "'Fraunces', serif" }} className="font-bold text-slate-800 text-xl">Link de invitación</h3>
-          <p className="text-slate-500 text-sm mt-1">Envíale este link a <strong>{patient.name}</strong> por WhatsApp o email</p>
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:50, display:"flex", alignItems:"flex-end", justifyContent:"center", padding:16 }}>
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:24, padding:24, width:"100%", maxWidth:400 }}>
+        <div style={{ textAlign:"center", marginBottom:20 }}>
+          <div style={{ fontSize:40, marginBottom:10 }}>🔗</div>
+          <h3 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:20, margin:0 }}>Link de invitación</h3>
+          <p style={{ color:C.muted, fontSize:14, marginTop:6 }}>Envíale este link a <strong style={{color:C.text}}>{patient.name}</strong></p>
         </div>
-        <div className="bg-slate-50 rounded-2xl p-4 mb-4 border border-slate-200">
-          <p className="text-xs text-slate-500 break-all font-mono">{link}</p>
-        </div>
-        <div className="grid gap-2">
-          <button onClick={copy}
-            className={`w-full py-3 rounded-2xl text-sm font-bold transition-all ${copied ? "bg-emerald-500 text-white" : "bg-teal-600 hover:bg-teal-700 text-white"}`}>
-            {copied ? "✓ ¡Copiado!" : "📋 Copiar link"}
-          </button>
-          <button onClick={onClose} className="w-full py-3 rounded-2xl text-sm font-medium text-slate-500 bg-slate-100 hover:bg-slate-200">Cerrar</button>
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:14, marginBottom:16, wordBreak:"break-all", fontSize:12, color:C.muted, fontFamily:"monospace" }}>{link}</div>
+        <div style={{ display:"grid", gap:10 }}>
+          <button onClick={copy} style={{ background:copied?"#34d399":`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:14, padding:13, color:"#fff", fontWeight:700, cursor:"pointer", fontSize:15 }}>{copied?"✓ ¡Copiado!":"📋 Copiar link"}</button>
+          <button onClick={onClose} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:13, color:C.muted, cursor:"pointer", fontSize:14 }}>Cerrar</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── PATIENT PROGRESS (therapist view) ────────────────────────────────────────
-function PatientProgressView({ patient }) {
-  const [logs, setLogs] = useState([]);
-  const [prescriptions, setPrescriptions] = useState([]);
-  const [loading, setLoading] = useState(true);
+// ─── PRESCRIBE / EDIT ────────────────────────────────────────────────────────
+function PrescribeView({ user, patient, onBack, existingPrescription }) {
+  const isEdit = !!existingPrescription;
 
-  useEffect(() => {
-    Promise.all([
-      supabase.from("exercise_logs").select("*").eq("patient_id", patient.id),
-      supabase.from("prescriptions").select("*").eq("patient_id", patient.id).order("created_at", { ascending: false }),
-    ]).then(([{ data: l }, { data: p }]) => {
-      setLogs(l || []); setPrescriptions(p || []); setLoading(false);
-    });
-  }, [patient.id]);
+  const initBlocks = () => {
+    const s = { "Terapia":[], "Calentamiento / Activación":[], "Trabajo central":[] };
+    if(isEdit) {
+      (existingPrescription.exercises||[]).forEach(ex=>{
+        const b = ex.block||"Trabajo central";
+        if(s[b]) s[b].push({...ex});
+        else s["Trabajo central"].push({...ex});
+      });
+    }
+    return s;
+  };
 
-  if (loading) return <div className="py-8 text-center text-slate-400 text-sm">Cargando...</div>;
-  if (logs.length === 0) return (
-    <div className="py-12 text-center text-slate-400">
-      <p className="text-4xl mb-2">📊</p>
-      <p className="text-sm">Este paciente aún no ha completado ejercicios</p>
+  const [selected,setSelected]     = useState(initBlocks);
+  const [note,setNote]             = useState(existingPrescription?.note||"");
+  const [activeBlock,setActiveBlock]= useState("Trabajo central");
+  const [search,setSearch]         = useState("");
+  const [category,setCategory]     = useState("Todos");
+  const [submitted,setSubmitted]   = useState(false);
+  const [loading,setLoading]       = useState(false);
+
+  const filtered = EXERCISES.filter(ex=>{
+    const mc = category==="Todos"||ex.category===category;
+    const ms = ex.name.toLowerCase().includes(search.toLowerCase())||ex.description.toLowerCase().includes(search.toLowerCase());
+    return mc&&ms;
+  });
+
+  const allSelected   = Object.values(selected).flat();
+  const isAnyBlock    = ex => allSelected.find(e=>e.id===ex.id);
+  const blockOfEx     = ex => { for(const b of BLOCKS) if(selected[b].find(e=>e.id===ex.id)) return b; return null; };
+
+  const addEx = ex => {
+    if(isAnyBlock(ex)) return;
+    setSelected(prev=>({...prev,[activeBlock]:[...prev[activeBlock],{...ex,sets:ex.defaultSets,reps:ex.defaultReps,block:activeBlock}]}));
+  };
+  const removeEx = (ex,block) => setSelected(prev=>({...prev,[block]:prev[block].filter(e=>e.id!==ex.id)}));
+  const updateEx = (id,block,field,val) => setSelected(prev=>({...prev,[block]:prev[block].map(e=>e.id===id?{...e,[field]:val}:e)}));
+
+  const send = async () => {
+    const allExercises = BLOCKS.flatMap(b=>(selected[b]||[]).map(e=>({...e,block:b})));
+    if(!allExercises.length) return;
+    setLoading(true);
+    if(isEdit) {
+      const {error} = await supabase.from("prescriptions").update({exercises:allExercises,note}).eq("id",existingPrescription.id);
+      if(!error) setSubmitted(true); else alert("Error: "+error.message);
+    } else {
+      const {error} = await supabase.from("prescriptions").insert({patient_id:patient.id,therapist_id:user.id,exercises:allExercises,note});
+      if(!error) setSubmitted(true); else alert("Error: "+error.message);
+    }
+    setLoading(false);
+  };
+
+  const total = allSelected.length;
+
+  if(submitted) return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 16px", textAlign:"center" }}>
+      <div style={{ width:72, height:72, background:"rgba(52,211,153,0.15)", border:"1px solid rgba(52,211,153,0.3)", borderRadius:24, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, marginBottom:20 }}>✓</div>
+      <h3 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:24, margin:"0 0 8px" }}>{isEdit?"¡Plan actualizado!":"¡Plan guardado!"}</h3>
+      <p style={{ color:C.muted, marginBottom:24 }}>{total} ejercicios para <strong style={{color:C.text}}>{patient.name}</strong></p>
+      <button onClick={onBack} style={{ background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:14, padding:"12px 28px", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:15 }}>Volver</button>
     </div>
   );
 
-  const last7 = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6-i)); return d; });
-  const logsPerDay = last7.map(day => ({ day, count: logs.filter(l => new Date(l.completed_at).toDateString() === day.toDateString()).length }));
-  const maxCount = Math.max(...logsPerDay.map(d => d.count), 1);
-  let streak = 0;
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    if (logs.some(l => new Date(l.completed_at).toDateString() === d.toDateString())) streak++;
-    else if (i > 0) break;
-  }
-  const latestPres = prescriptions[0];
-  const totalEx = latestPres?.exercises?.length || 0;
-  const todayDone = logs.filter(l => new Date(l.completed_at).toDateString() === new Date().toDateString()).length;
-  const dayShort = ["D","L","M","X","J","V","S"];
-
   return (
-    <div className="p-4">
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        {[
-          { val: streak, label: "Racha", emoji: "🔥" },
-          { val: logs.length, label: "Total", emoji: "✅" },
-          { val: `${totalEx > 0 ? Math.round((todayDone/totalEx)*100) : 0}%`, label: "Hoy", emoji: "📅" },
-        ].map((s, i) => (
-          <div key={i} className="bg-slate-50 rounded-2xl p-3 text-center border border-slate-100">
-            <p className="text-lg">{s.emoji}</p>
-            <p className="text-xl font-bold text-slate-800">{s.val}</p>
-            <p className="text-xs text-slate-400">{s.label}</p>
-          </div>
-        ))}
-      </div>
-      <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-3">
-        <p className="text-xs font-semibold text-slate-500 mb-3">Últimos 7 días</p>
-        <div className="flex items-end gap-2 h-16">
-          {logsPerDay.map(({ day, count }, i) => {
-            const isToday = day.toDateString() === new Date().toDateString();
-            return (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <div className="w-full rounded-lg transition-all"
-                  style={{ height: `${count > 0 ? Math.max((count/maxCount)*52,8) : 3}px`, background: isToday ? "#0d9488" : count > 0 ? "#99f6e4" : "#e2e8f0" }} />
-                <span className="text-xs text-slate-400">{dayShort[day.getDay()]}</span>
-              </div>
-            );
-          })}
+    <div>
+      <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, color:C.muted, background:"none", border:"none", cursor:"pointer", fontSize:14, fontWeight:500, marginBottom:20 }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Volver
+      </button>
+
+      <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:24 }}>
+        <Avatar name={patient.name} size={52}/>
+        <div>
+          <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:22, margin:0 }}>{isEdit?"Editar plan":"Prescribir ejercicios"}</h2>
+          <p style={{ color:C.muted, fontSize:14, marginTop:3 }}>{patient.name} · {patient.condition||"Sin diagnóstico"}</p>
         </div>
       </div>
-      <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-        <p className="text-xs font-semibold text-slate-500 mb-2">Consistencia (30 días)</p>
-        <div className="flex flex-wrap gap-1">
-          {Array.from({ length: 30 }, (_, i) => {
-            const d = new Date(); d.setDate(d.getDate() - (29-i));
-            const count = logs.filter(l => new Date(l.completed_at).toDateString() === d.toDateString()).length;
-            return <div key={i} className={`w-5 h-5 rounded-md ${count===0?"bg-slate-200":count<=2?"bg-teal-100":count<=5?"bg-teal-300":"bg-teal-500"}`} />;
-          })}
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24 }}>
+        {/* LEFT - Library */}
+        <div>
+          <p style={{ fontSize:11, fontWeight:700, color:C.dim, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>Biblioteca · {EXERCISES.length}</p>
+
+          {/* Block selector */}
+          <div style={{ marginBottom:14 }}>
+            <p style={{ fontSize:12, color:C.muted, marginBottom:8 }}>Agregar al bloque:</p>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {BLOCKS.map(b=>{
+                const m = BLOCK_META[b];
+                return (
+                  <button key={b} onClick={()=>setActiveBlock(b)}
+                    style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, padding:"6px 12px", borderRadius:10, cursor:"pointer", fontWeight:600, transition:"all 0.2s",
+                      background: activeBlock===b ? m.bg : "transparent",
+                      border: activeBlock===b ? `1px solid ${m.color}55` : `1px solid ${C.border}`,
+                      color: activeBlock===b ? m.color : C.muted
+                    }}>
+                    {m.icon} {b}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ position:"relative", marginBottom:10 }}>
+            <svg style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar ejercicio..." style={{...inp, paddingLeft:36}}/>
+          </div>
+
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
+            {CATEGORIES.map(cat=>(
+              <button key={cat} onClick={()=>setCategory(cat)}
+                style={{ fontSize:11, padding:"4px 10px", borderRadius:20, cursor:"pointer", fontWeight:500, border:"none", background:category===cat?C.accent:"rgba(255,255,255,0.06)", color:category===cat?"#fff":C.muted }}>
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display:"grid", gap:8, maxHeight:480, overflowY:"auto", paddingRight:4 }}>
+            {filtered.map(ex=>{
+              const bOf = blockOfEx(ex);
+              const m   = bOf ? BLOCK_META[bOf] : null;
+              return (
+                <div key={ex.id} style={{ background: bOf?m.bg:C.card, border:`1px solid ${bOf?m.color+"44":C.border}`, borderRadius:16, padding:12 }}>
+                  <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <p style={{ color:C.text, fontWeight:600, fontSize:13, margin:"0 0 3px" }}>{ex.name}</p>
+                      <p style={{ color:C.muted, fontSize:11, margin:0 }}>{ex.description?.slice(0,60)}...</p>
+                      <div style={{ display:"flex", gap:6, marginTop:6, flexWrap:"wrap" }}>
+                        <span style={{ fontSize:10, background:"rgba(255,255,255,0.07)", color:C.muted, padding:"2px 8px", borderRadius:10 }}>{ex.category}</span>
+                        {bOf && <span style={{ fontSize:10, color:m.color, padding:"2px 8px", borderRadius:10, background:m.bg }}>{m.icon} {bOf}</span>}
+                      </div>
+                    </div>
+                    <button onClick={()=>bOf?removeEx(ex,bOf):addEx(ex)}
+                      style={{ fontSize:12, padding:"5px 10px", borderRadius:10, cursor:"pointer", fontWeight:700, border:"none", flexShrink:0,
+                        background: bOf?"rgba(248,113,113,0.15)":"rgba(38,166,154,0.15)",
+                        color: bOf?C.danger:C.accent
+                      }}>
+                      {bOf?"✕":"+"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            {filtered.length===0 && <p style={{ color:C.muted, textAlign:"center", padding:24, fontSize:14 }}>Sin resultados</p>}
+          </div>
+        </div>
+
+        {/* RIGHT - Plan */}
+        <div>
+          <p style={{ fontSize:11, fontWeight:700, color:C.dim, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>Plan · {total} ejercicios</p>
+
+          {total===0 ? (
+            <div style={{ background:C.card, border:`2px dashed ${C.border}`, borderRadius:20, padding:40, textAlign:"center", color:C.dim, fontSize:14, marginBottom:14 }}>
+              <div style={{ fontSize:32, marginBottom:10 }}>💪</div>
+              Selecciona ejercicios de la biblioteca
+            </div>
+          ) : (
+            <div style={{ display:"grid", gap:12, maxHeight:400, overflowY:"auto", paddingRight:4, marginBottom:14 }}>
+              {BLOCKS.map(blockName=>{
+                const exList = selected[blockName];
+                if(!exList.length) return null;
+                const m = BLOCK_META[blockName];
+                return (
+                  <div key={blockName}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, background:m.bg, border:`1px solid ${m.color}33`, borderRadius:12, padding:"8px 12px", marginBottom:8 }}>
+                      <span>{m.icon}</span>
+                      <span style={{ color:m.color, fontWeight:700, fontSize:12 }}>{blockName}</span>
+                      <span style={{ marginLeft:"auto", color:m.color, fontSize:11, background:"rgba(0,0,0,0.2)", padding:"1px 7px", borderRadius:8 }}>{exList.length}</span>
+                    </div>
+                    {exList.map((ex,i)=>(
+                      <div key={ex.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:12, marginBottom:8 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
+                          <div>
+                            <span style={{ fontSize:10, color:m.color, fontWeight:700 }}>#{i+1}</span>
+                            <p style={{ color:C.text, fontWeight:600, fontSize:13, margin:"2px 0 0" }}>{ex.name}</p>
+                          </div>
+                          <button onClick={()=>removeEx(ex,blockName)} style={{ background:"none", border:"none", color:C.dim, cursor:"pointer", fontSize:18, padding:0 }}>×</button>
+                        </div>
+                        <div style={{ display:"flex", gap:8 }}>
+                          <div style={{ flex:1 }}>
+                            <label style={{ fontSize:11, color:C.dim, display:"block", marginBottom:4 }}>Series</label>
+                            <input type="number" value={ex.sets} min="1" onChange={e=>updateEx(ex.id,blockName,"sets",e.target.value)}
+                              style={{...inp, textAlign:"center", fontWeight:700, padding:"8px"}}/>
+                          </div>
+                          <div style={{ flex:1 }}>
+                            <label style={{ fontSize:11, color:C.dim, display:"block", marginBottom:4 }}>Reps / Tiempo</label>
+                            <input type="text" value={ex.reps} onChange={e=>updateEx(ex.id,blockName,"reps",e.target.value)}
+                              style={{...inp, textAlign:"center", fontWeight:700, padding:"8px"}}/>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Nota para el paciente..." rows={3}
+            style={{...inp, resize:"none", marginBottom:12, lineHeight:1.5}}/>
+          <button onClick={send} disabled={!total||loading}
+            style={{ width:"100%", background:total?`linear-gradient(135deg,${C.accent},#1a7a75)`:"rgba(255,255,255,0.05)", border:"none", borderRadius:14, padding:"13px", color:total?"#fff":C.dim, fontWeight:700, fontSize:15, cursor:total?"pointer":"not-allowed", transition:"all 0.2s", boxShadow:total?`0 4px 20px rgba(38,166,154,0.25)`:"none" }}>
+            {loading?"Guardando...":`${isEdit?"Actualizar":"Guardar"} plan · ${total} ejercicios`}
+          </button>
         </div>
       </div>
     </div>
@@ -187,116 +332,147 @@ function PatientProgressView({ patient }) {
 
 // ─── PATIENT PROFILE ──────────────────────────────────────────────────────────
 function PatientProfile({ patient, user, onBack, onPrescribe }) {
-  const [prescriptions, setPrescriptions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showInvite, setShowInvite] = useState(false);
-  const [activePres, setActivePres] = useState(null);
-  const [activeTab, setActiveTab] = useState("plans");
+  const [prescriptions,setPrescriptions] = useState([]);
+  const [loading,setLoading]             = useState(true);
+  const [showInvite,setShowInvite]       = useState(false);
+  const [activePres,setActivePres]       = useState(null);
+  const [activeTab,setActiveTab]         = useState("plans");
+  const [editPres,setEditPres]           = useState(null);
+  const [logs,setLogs]                   = useState([]);
 
-  useEffect(() => {
-    supabase.from("prescriptions").select("*").eq("patient_id", patient.id).order("created_at", { ascending: false })
-      .then(({ data }) => { setPrescriptions(data || []); setLoading(false); });
-  }, []);
+  useEffect(()=>{
+    Promise.all([
+      supabase.from("prescriptions").select("*").eq("patient_id",patient.id).order("created_at",{ascending:false}),
+      supabase.from("exercise_logs").select("*").eq("patient_id",patient.id),
+    ]).then(([{data:p},{data:l}])=>{ setPrescriptions(p||[]); setLogs(l||[]); setLoading(false); });
+  },[patient.id]);
 
-  const initials = patient.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
+  const deletePrescription = async (id) => {
+    if(!window.confirm("¿Eliminar este plan?")) return;
+    await supabase.from("prescriptions").delete().eq("id",id);
+    setPrescriptions(prev=>prev.filter(p=>p.id!==id));
+  };
+
+  if(editPres) return <PrescribeView user={user} patient={patient} onBack={()=>setEditPres(null)} existingPrescription={editPres}/>;
+
+  const last7 = Array.from({length:7},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-(6-i)); return d; });
+  let streak=0;
+  for(let i=0;i<30;i++){
+    const d=new Date(); d.setDate(d.getDate()-i);
+    if(logs.some(l=>new Date(l.completed_at).toDateString()===d.toDateString())) streak++;
+    else if(i>0) break;
+  }
 
   return (
     <div>
-      {showInvite && <InviteModal patient={patient} onClose={() => setShowInvite(false)} />}
+      {showInvite && <InviteModal patient={patient} onClose={()=>setShowInvite(false)}/>}
 
-      <button onClick={onBack} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-600 mb-5 text-sm font-medium transition-colors">
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, color:C.muted, background:"none", border:"none", cursor:"pointer", fontSize:14, fontWeight:500, marginBottom:20 }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         Volver
       </button>
 
       {/* Profile card */}
-      <div className="bg-gradient-to-br from-teal-500 to-teal-700 rounded-3xl p-6 mb-5 text-white relative overflow-hidden">
-        <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/10" />
-        <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-white/10" />
-        <div className="relative flex items-center gap-4">
-          <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center text-2xl font-bold border border-white/30">
-            {initials}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-xl font-bold" style={{ fontFamily: "'Fraunces', serif" }}>{patient.name}</h2>
-            <p className="text-teal-100 text-sm mt-0.5">{patient.condition || "Sin diagnóstico"}</p>
-            {patient.age && <p className="text-teal-200 text-xs mt-0.5">{patient.age} años</p>}
-            {patient.email && <p className="text-teal-200 text-xs mt-0.5">✉️ {patient.email}</p>}
+      <div style={{ background:"linear-gradient(135deg,#0d2929,#112020)", border:`1px solid rgba(38,166,154,0.2)`, borderRadius:24, padding:24, marginBottom:16, position:"relative", overflow:"hidden" }}>
+        <div style={{ position:"absolute", top:-30, right:-30, width:120, height:120, borderRadius:"50%", background:"rgba(38,166,154,0.06)" }}/>
+        <div style={{ position:"relative", display:"flex", gap:16, alignItems:"center" }}>
+          <Avatar name={patient.name} size={64}/>
+          <div style={{ flex:1 }}>
+            <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:22, margin:"0 0 4px" }}>{patient.name}</h2>
+            <p style={{ color:C.muted, fontSize:14, margin:"0 0 6px" }}>{patient.condition||"Sin diagnóstico"}</p>
+            {patient.age && <p style={{ color:C.dim, fontSize:12, margin:0 }}>{patient.age} años{patient.email?` · ${patient.email}`:""}</p>}
+            <div style={{ marginTop:10 }}>
+              {patient.user_id
+                ? <span style={{ background:"rgba(52,211,153,0.15)", border:"1px solid rgba(52,211,153,0.3)", color:"#34d399", fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>✓ App activa</span>
+                : <span style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.3)", color:"#fbbf24", fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>Sin acceso a la app</span>
+              }
+            </div>
           </div>
         </div>
-        <div className="relative flex items-center gap-2 mt-4">
-          {patient.user_id
-            ? <span className="bg-emerald-400/20 border border-emerald-300/40 text-white text-xs px-2.5 py-1 rounded-full font-medium">✓ App activa</span>
-            : <span className="bg-white/20 border border-white/30 text-white text-xs px-2.5 py-1 rounded-full font-medium">Sin acceso a la app</span>
-          }
+        <div style={{ display:"flex", gap:10, marginTop:16 }}>
+          <button onClick={()=>onPrescribe(patient)} style={{ flex:1, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:14, padding:12, color:"#fff", fontWeight:700, cursor:"pointer", fontSize:14 }}>💪 Prescribir nuevo</button>
+          <button onClick={()=>setShowInvite(true)} style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:12, color:C.text, fontWeight:600, cursor:"pointer", fontSize:14 }}>🔗 Invitar</button>
         </div>
       </div>
 
-      {/* Action buttons */}
-      <div className="flex gap-3 mb-5">
-        <button onClick={() => onPrescribe(patient)}
-          className="flex-1 flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white text-sm px-4 py-3 rounded-2xl font-semibold transition-colors shadow-sm">
-          💪 Prescribir
-        </button>
-        <button onClick={() => setShowInvite(true)}
-          className="flex-1 flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 text-sm px-4 py-3 rounded-2xl font-semibold border border-slate-200 transition-colors">
-          🔗 Invitar
-        </button>
+      {/* Stats row */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
+        {[{v:prescriptions.length,l:"Planes",e:"📋"},{v:streak,l:"Racha",e:"🔥"},{v:logs.length,l:"Completados",e:"✅"}].map((s,i)=>(
+          <div key={i} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:"12px 8px", textAlign:"center" }}>
+            <div style={{ fontSize:18 }}>{s.e}</div>
+            <div style={{ fontSize:22, fontWeight:700, color:C.text, marginTop:3 }}>{s.v}</div>
+            <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{s.l}</div>
+          </div>
+        ))}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-slate-100 rounded-2xl p-1 mb-5">
-        {[{ id:"plans", label:"Planes", icon:"📋" }, { id:"progress", label:"Progreso", icon:"📊" }].map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all ${activeTab === t.id ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+      <div style={{ display:"flex", gap:4, background:C.surface, border:`1px solid ${C.border}`, borderRadius:18, padding:4, marginBottom:16 }}>
+        {[{id:"plans",label:"Planes",icon:"📋"},{id:"progress",label:"Progreso",icon:"📊"}].map(t=>(
+          <button key={t.id} onClick={()=>setActiveTab(t.id)}
+            style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"10px", borderRadius:14, border:"none", cursor:"pointer", fontWeight:600, fontSize:14, transition:"all 0.2s",
+              background: activeTab===t.id ? C.accent : "transparent",
+              color: activeTab===t.id ? "#fff" : C.muted
+            }}>
             {t.icon} {t.label}
           </button>
         ))}
       </div>
 
-      {activeTab === "plans" && (
-        loading ? <div className="text-center py-8 text-slate-400">Cargando...</div>
-        : prescriptions.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-2xl border border-slate-100">
-            <p className="text-4xl mb-2">📋</p><p className="text-slate-400">Sin planes prescritos</p>
+      {/* Plans */}
+      {activeTab==="plans" && (
+        loading ? <Spinner/> : prescriptions.length===0 ? (
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:40, textAlign:"center" }}>
+            <div style={{ fontSize:36, marginBottom:10 }}>📋</div>
+            <p style={{ color:C.muted }}>Sin planes prescritos</p>
           </div>
         ) : (
-          <div className="grid gap-3">
-            {prescriptions.map((pres, i) => (
-              <div key={pres.id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-                <button onClick={() => setActivePres(activePres === pres.id ? null : pres.id)}
-                  className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors text-left">
+          <div style={{ display:"grid", gap:12 }}>
+            {prescriptions.map((pres,i)=>(
+              <div key={pres.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, overflow:"hidden" }}>
+                <button onClick={()=>setActivePres(activePres===pres.id?null:pres.id)}
+                  style={{ width:"100%", padding:16, display:"flex", alignItems:"center", justifyContent:"space-between", background:"none", border:"none", cursor:"pointer", textAlign:"left" }}>
                   <div>
-                    <p className="font-semibold text-slate-800 text-sm">{i === 0 ? "🟢 Plan actual" : `Plan #${prescriptions.length - i}`}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {new Date(pres.created_at).toLocaleDateString("es-CO", { day:"numeric", month:"long", year:"numeric" })}
-                      {" · "}{pres.exercises?.length || 0} ejercicios
+                    <p style={{ color:C.text, fontWeight:600, fontSize:15, margin:0 }}>{i===0?"🟢 Plan actual":`Plan #${prescriptions.length-i}`}</p>
+                    <p style={{ color:C.dim, fontSize:12, marginTop:4 }}>
+                      {new Date(pres.created_at).toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"})} · {pres.exercises?.length||0} ejercicios
                     </p>
                   </div>
-                  <svg className={`w-4 h-4 text-slate-400 transition-transform ${activePres === pres.id ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="2" style={{ transform:activePres===pres.id?"rotate(180deg)":"none", transition:"transform 0.2s" }}><path d="M6 9l6 6 6-6"/></svg>
                 </button>
-                {activePres === pres.id && (
-                  <div className="border-t border-slate-100 p-4">
+                {activePres===pres.id && (
+                  <div style={{ borderTop:`1px solid ${C.border}`, padding:16 }}>
+                    {/* Edit / Delete buttons */}
+                    <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+                      <button onClick={()=>setEditPres(pres)}
+                        style={{ flex:1, background:"rgba(38,166,154,0.15)", border:"1px solid rgba(38,166,154,0.3)", borderRadius:12, padding:"8px", color:C.accent, fontWeight:600, fontSize:13, cursor:"pointer" }}>
+                        ✏️ Editar plan
+                      </button>
+                      <button onClick={()=>deletePrescription(pres.id)}
+                        style={{ background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.25)", borderRadius:12, padding:"8px 14px", color:C.danger, fontWeight:600, fontSize:13, cursor:"pointer" }}>
+                        🗑
+                      </button>
+                    </div>
                     {pres.note && (
-                      <div className="bg-teal-50 rounded-xl p-3 mb-3 flex gap-2">
+                      <div style={{ background:"rgba(38,166,154,0.08)", border:"1px solid rgba(38,166,154,0.2)", borderRadius:12, padding:12, marginBottom:12, display:"flex", gap:8 }}>
                         <span>📝</span>
-                        <p className="text-sm text-teal-800">{pres.note}</p>
+                        <p style={{ color:C.accentL, fontSize:13, margin:0 }}>{pres.note}</p>
                       </div>
                     )}
-                    {BLOCKS.concat(["Sin bloque"]).map(blockName => {
-                      const exList = (pres.exercises || []).filter(e => (e.block || "Sin bloque") === blockName);
-                      if (!exList.length) return null;
-                      const style = BLOCK_STYLES[blockName] || { bg:"bg-slate-50", border:"border-slate-200", text:"text-slate-600", icon:"📋" };
+                    {BLOCKS.concat(["Sin bloque"]).map(blockName=>{
+                      const exList=(pres.exercises||[]).filter(e=>(e.block||"Sin bloque")===blockName);
+                      if(!exList.length) return null;
+                      const m=BLOCK_META[blockName]||BLOCK_META["Sin bloque"];
                       return (
-                        <div key={blockName} className="mb-3">
-                          <div className={`flex items-center gap-2 rounded-xl px-3 py-2 mb-2 ${style.bg} border ${style.border}`}>
-                            <span>{style.icon}</span>
-                            <span className={`font-semibold text-xs ${style.text}`}>{blockName}</span>
+                        <div key={blockName} style={{ marginBottom:12 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:6, background:m.bg, border:`1px solid ${m.color}33`, borderRadius:10, padding:"6px 12px", marginBottom:8 }}>
+                            <span>{m.icon}</span>
+                            <span style={{ color:m.color, fontWeight:700, fontSize:12 }}>{blockName}</span>
                           </div>
-                          {exList.map((ex, idx) => (
-                            <div key={idx} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2.5 mb-1.5">
-                              <p className="text-sm font-medium text-slate-800">{ex.name}</p>
-                              <p className="text-xs font-bold text-teal-600">{ex.sets} × {ex.reps}</p>
+                          {exList.map((ex,idx)=>(
+                            <div key={idx} style={{ display:"flex", justifyContent:"space-between", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 14px", marginBottom:6 }}>
+                              <p style={{ color:C.text, fontSize:13, fontWeight:500, margin:0 }}>{ex.name}</p>
+                              <p style={{ color:C.accent, fontSize:13, fontWeight:700, margin:0, flexShrink:0 }}>{ex.sets}×{ex.reps}</p>
                             </div>
                           ))}
                         </div>
@@ -310,9 +486,45 @@ function PatientProfile({ patient, user, onBack, onPrescribe }) {
         )
       )}
 
-      {activeTab === "progress" && (
-        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-          <PatientProgressView patient={patient} />
+      {/* Progress */}
+      {activeTab==="progress" && (
+        <div>
+          {logs.length===0 ? (
+            <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:40, textAlign:"center" }}>
+              <div style={{ fontSize:36, marginBottom:10 }}>📊</div>
+              <p style={{ color:C.muted }}>Aún no ha completado ejercicios</p>
+            </div>
+          ) : (
+            <>
+              <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:20, marginBottom:12 }}>
+                <p style={{ fontSize:11, fontWeight:700, color:C.dim, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>Últimos 7 días</p>
+                <div style={{ display:"flex", alignItems:"flex-end", gap:8, height:60 }}>
+                  {last7.map((day,i)=>{
+                    const count=logs.filter(l=>new Date(l.completed_at).toDateString()===day.toDateString()).length;
+                    const isToday=day.toDateString()===new Date().toDateString();
+                    const maxC=Math.max(...last7.map(d=>logs.filter(l=>new Date(l.completed_at).toDateString()===d.toDateString()).length),1);
+                    const dayShort=["D","L","M","X","J","V","S"];
+                    return (
+                      <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                        <div style={{ width:"100%", borderRadius:6, minHeight:3, height:`${count>0?Math.max((count/maxC)*44,8):3}px`, background:isToday?C.accent:count>0?"rgba(38,166,154,0.4)":C.border }}/>
+                        <span style={{ fontSize:10, color:isToday?C.accent:C.dim }}>{dayShort[day.getDay()]}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:20 }}>
+                <p style={{ fontSize:11, fontWeight:700, color:C.dim, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>Consistencia · 30 días</p>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                  {Array.from({length:30},(_,i)=>{
+                    const d=new Date(); d.setDate(d.getDate()-(29-i));
+                    const count=logs.filter(l=>new Date(l.completed_at).toDateString()===d.toDateString()).length;
+                    return <div key={i} style={{ width:20, height:20, borderRadius:5, background:count===0?C.border:count<=2?"rgba(38,166,154,0.3)":count<=5?"rgba(38,166,154,0.6)":"rgba(38,166,154,0.9)" }}/>;
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -321,114 +533,94 @@ function PatientProfile({ patient, user, onBack, onPrescribe }) {
 
 // ─── PATIENTS LIST ─────────────────────────────────────────────────────────────
 function PatientsView({ user, onPrescribe, onViewProfile }) {
-  const [patients, setPatients]   = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [search, setSearch]       = useState("");
-  const [showForm, setShowForm]   = useState(false);
-  const [showInvite, setShowInvite] = useState(null);
-  const [form, setForm] = useState({ name:"", age:"", condition:"", next_session:"", email:"" });
+  const [patients,setPatients]   = useState([]);
+  const [loading,setLoading]     = useState(true);
+  const [search,setSearch]       = useState("");
+  const [showForm,setShowForm]   = useState(false);
+  const [showInvite,setShowInvite]= useState(null);
+  const [form,setForm] = useState({name:"",age:"",condition:"",next_session:"",email:""});
 
-  useEffect(() => { fetchPatients(); }, []);
+  useEffect(()=>{ fetchPatients(); },[]);
 
   const fetchPatients = async () => {
-    const { data } = await supabase.from("patients").select("*").order("created_at", { ascending: false });
-    setPatients(data || []); setLoading(false);
+    const {data} = await supabase.from("patients").select("*").order("created_at",{ascending:false});
+    setPatients(data||[]); setLoading(false);
   };
 
   const addPatient = async () => {
-    if (!form.name) return;
+    if(!form.name) return;
     const token = crypto.randomUUID();
-    const { data, error } = await supabase.from("patients")
-      .insert({ ...form, therapist_id: user.id, age: parseInt(form.age) || null, invite_token: token })
+    const {data,error} = await supabase.from("patients")
+      .insert({...form,therapist_id:user.id,age:parseInt(form.age)||null,invite_token:token})
       .select().single();
-    setForm({ name:"", age:"", condition:"", next_session:"", email:"" });
-    setShowForm(false);
-    fetchPatients();
-    if (data && !error) setShowInvite(data);
+    setForm({name:"",age:"",condition:"",next_session:"",email:""});
+    setShowForm(false); fetchPatients();
+    if(data&&!error) setShowInvite(data);
   };
 
-  const initials = (name) => name.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase();
-  const filtered = patients.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = patients.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div>
-      {showInvite && <InviteModal patient={showInvite} onClose={() => setShowInvite(null)} />}
+      {showInvite && <InviteModal patient={showInvite} onClose={()=>setShowInvite(null)}/>}
 
-      <div className="flex items-center justify-between mb-6">
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
         <div>
-          <h2 style={{ fontFamily: "'Fraunces', serif" }} className="text-2xl font-bold text-slate-800">Mis Pacientes</h2>
-          <p className="text-slate-400 text-sm mt-0.5">{patients.length} pacientes activos</p>
+          <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:26, margin:0 }}>Mis Pacientes</h2>
+          <p style={{ color:C.muted, fontSize:13, marginTop:4 }}>{patients.length} pacientes</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-2xl text-sm font-semibold transition-colors shadow-sm">
+        <button onClick={()=>setShowForm(!showForm)}
+          style={{ background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:14, padding:"10px 18px", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:14, boxShadow:`0 4px 16px rgba(38,166,154,0.25)` }}>
           + Nuevo
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-gradient-to-br from-teal-50 to-white border border-teal-200 rounded-3xl p-5 mb-5 shadow-sm">
-          <h3 className="font-bold text-slate-700 mb-4 text-sm">Nuevo paciente</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Nombre completo *"
-              className="col-span-2 border border-slate-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
-            <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="Correo" type="email"
-              className="col-span-2 border border-slate-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
-            <input value={form.age} onChange={e => setForm({...form, age: e.target.value})} placeholder="Edad" type="number"
-              className="border border-slate-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
-            <input value={form.next_session} onChange={e => setForm({...form, next_session: e.target.value})} type="date"
-              className="border border-slate-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
-            <input value={form.condition} onChange={e => setForm({...form, condition: e.target.value})} placeholder="Diagnóstico"
-              className="col-span-2 border border-slate-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
-            <div className="col-span-2 flex gap-2">
-              <button onClick={addPatient} className="flex-1 bg-teal-600 text-white py-2.5 rounded-2xl text-sm font-semibold hover:bg-teal-700 transition-colors">Guardar y generar link</button>
-              <button onClick={() => setShowForm(false)} className="bg-white text-slate-500 px-4 py-2.5 rounded-2xl text-sm font-medium border border-slate-200">Cancelar</button>
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:20, marginBottom:16 }}>
+          <h3 style={{ color:C.text, fontSize:15, fontWeight:600, margin:"0 0 14px" }}>Nuevo paciente</h3>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre completo *" style={{...inp,gridColumn:"1/-1"}}/>
+            <input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Correo del paciente" type="email" style={{...inp,gridColumn:"1/-1"}}/>
+            <input value={form.age} onChange={e=>setForm({...form,age:e.target.value})} placeholder="Edad" type="number" style={inp}/>
+            <input value={form.next_session} onChange={e=>setForm({...form,next_session:e.target.value})} type="date" style={inp}/>
+            <input value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} placeholder="Diagnóstico" style={{...inp,gridColumn:"1/-1"}}/>
+            <div style={{ gridColumn:"1/-1", display:"flex", gap:10 }}>
+              <button onClick={addPatient} style={{ flex:1, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:12, padding:"11px", color:"#fff", fontWeight:700, cursor:"pointer" }}>Guardar y generar link</button>
+              <button onClick={()=>setShowForm(false)} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 16px", color:C.muted, cursor:"pointer" }}>Cancelar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar paciente..."
-          className="w-full border border-slate-200 rounded-2xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white shadow-sm" />
+      <div style={{ position:"relative", marginBottom:14 }}>
+        <svg style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar paciente..." style={{...inp,paddingLeft:38}}/>
       </div>
 
-      {loading ? (
-        <div className="text-center py-16 text-slate-400">
-          <div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-slate-400 bg-white rounded-3xl border border-slate-100">
-          <p className="text-5xl mb-3">👤</p>
-          <p className="font-medium">No hay pacientes aún</p>
-          <p className="text-sm mt-1">Agrega tu primer paciente arriba</p>
+      {loading ? <Spinner/> : filtered.length===0 ? (
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:48, textAlign:"center" }}>
+          <div style={{ fontSize:48, marginBottom:12 }}>👤</div>
+          <p style={{ color:C.muted }}>No hay pacientes aún</p>
         </div>
       ) : (
-        <div className="grid gap-3">
-          {filtered.map(p => (
-            <div key={p.id} onClick={() => onViewProfile(p)}
-              className="bg-white rounded-2xl border border-slate-100 p-4 hover:shadow-md hover:border-teal-200 transition-all cursor-pointer group">
-              <div className="flex items-center gap-3">
-                <Avatar initials={initials(p.name)} size="lg" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-slate-800">{p.name}</span>
-                    {p.user_id && <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">✓ Activo</span>}
+        <div style={{ display:"grid", gap:10 }}>
+          {filtered.map(p=>(
+            <div key={p.id} onClick={()=>onViewProfile(p)}
+              style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:16, cursor:"pointer", transition:"all 0.2s" }}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent+"55"}
+              onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+              <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                <Avatar name={p.name} size={48}/>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                    <span style={{ color:C.text, fontWeight:600, fontSize:15 }}>{p.name}</span>
+                    {p.user_id && <span style={{ fontSize:10, background:"rgba(52,211,153,0.15)", color:"#34d399", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>✓ Activo</span>}
                   </div>
-                  <p className="text-sm text-slate-400 mt-0.5 truncate">{p.condition || "Sin diagnóstico"}{p.age ? ` · ${p.age} años` : ""}</p>
+                  <p style={{ color:C.muted, fontSize:13, marginTop:3 }}>{p.condition||"Sin diagnóstico"}{p.age?` · ${p.age} años`:""}</p>
                 </div>
-                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => onPrescribe(p)}
-                    className="bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs px-3 py-1.5 rounded-xl font-semibold transition-colors">
-                    💪 Prescribir
-                  </button>
-                  {p.invite_token && (
-                    <button onClick={() => setShowInvite(p)}
-                      className="bg-slate-50 hover:bg-slate-100 text-slate-500 text-xs px-2 py-1.5 rounded-xl transition-colors">
-                      🔗
-                    </button>
-                  )}
+                <div style={{ display:"flex", gap:8 }} onClick={e=>e.stopPropagation()}>
+                  <button onClick={()=>onPrescribe(p)} style={{ background:"rgba(38,166,154,0.15)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:12, padding:"7px 12px", color:C.accent, fontWeight:600, fontSize:13, cursor:"pointer" }}>💪</button>
+                  {p.invite_token && <button onClick={()=>setShowInvite(p)} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"7px 10px", color:C.muted, fontSize:13, cursor:"pointer" }}>🔗</button>}
                 </div>
               </div>
             </div>
@@ -439,398 +631,242 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
   );
 }
 
-// ─── PRESCRIBE ────────────────────────────────────────────────────────────────
-function PrescribeView({ user, patient, onBack }) {
-  const [search, setSearch]         = useState("");
-  const [category, setCategory]     = useState("Todos");
-  const [selectedBlock, setSelectedBlock] = useState("Trabajo central");
-  const [selected, setSelected]     = useState({ "Terapia": [], "Calentamiento / Activación": [], "Trabajo central": [] });
-  const [note, setNote]             = useState("");
-  const [submitted, setSubmitted]   = useState(false);
-  const [loading, setLoading]       = useState(false);
-  const [activeBlock, setActiveBlock] = useState("Trabajo central");
+// ─── CALENDAR AGENDA ──────────────────────────────────────────────────────────
+const HOURS = Array.from({length:13},(_,i)=>`${(7+i).toString().padStart(2,"0")}:00`); // 07:00 - 19:00
+const MAX_PER_SLOT = 3;
 
-  const filtered = EXERCISES.filter(ex => {
-    const matchCat = category === "Todos" || ex.category === category;
-    const matchSearch = ex.name.toLowerCase().includes(search.toLowerCase()) || ex.description.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
-  });
-
-  const allSelected = Object.values(selected).flat();
-  const isInBlock = (ex, block) => selected[block]?.find(e => e.id === ex.id);
-  const isAnyBlock = (ex) => allSelected.find(e => e.id === ex.id);
-
-  const addExercise = (ex) => {
-    if (isAnyBlock(ex)) return;
-    setSelected(prev => ({
-      ...prev,
-      [activeBlock]: [...prev[activeBlock], { ...ex, sets: ex.defaultSets, reps: ex.defaultReps, block: activeBlock }]
-    }));
-  };
-
-  const removeExercise = (ex, block) => {
-    setSelected(prev => ({ ...prev, [block]: prev[block].filter(e => e.id !== ex.id) }));
-  };
-
-  const updateExercise = (id, block, field, value) => {
-    setSelected(prev => ({
-      ...prev,
-      [block]: prev[block].map(e => e.id === id ? { ...e, [field]: value } : e)
-    }));
-  };
-
-  const send = async () => {
-    const allExercises = BLOCKS.flatMap(b => (selected[b] || []).map(e => ({ ...e, block: b })));
-    if (!allExercises.length) return;
-    setLoading(true);
-    const { error } = await supabase.from("prescriptions").insert({
-      patient_id: patient.id, therapist_id: user.id, exercises: allExercises, note,
-    });
-    if (!error) setSubmitted(true);
-    else alert("Error: " + error.message);
-    setLoading(false);
-  };
-
-  const totalCount = allSelected.length;
-  const initials = patient.name.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase();
-
-  if (submitted) return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-20 h-20 bg-emerald-100 rounded-3xl flex items-center justify-center mb-5 text-4xl shadow-sm">✓</div>
-      <h3 style={{ fontFamily: "'Fraunces', serif" }} className="text-2xl font-bold text-slate-800 mb-2">¡Plan guardado!</h3>
-      <p className="text-slate-500 mb-6">Prescribiste <strong>{totalCount} ejercicios</strong> a <strong>{patient.name}</strong></p>
-      <button onClick={onBack} className="bg-teal-600 text-white px-8 py-3 rounded-2xl font-semibold hover:bg-teal-700 transition-colors">Volver</button>
-    </div>
-  );
-
-  return (
-    <div>
-      <button onClick={onBack} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-600 mb-5 text-sm font-medium">
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-        Volver
-      </button>
-
-      <div className="flex items-center gap-3 mb-6">
-        <Avatar initials={initials} size="lg" />
-        <div>
-          <h2 style={{ fontFamily: "'Fraunces', serif" }} className="text-2xl font-bold text-slate-800">Prescribir</h2>
-          <p className="text-slate-400 text-sm">{patient.name} · {patient.condition || "Sin diagnóstico"}</p>
-        </div>
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* LEFT — Library */}
-        <div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Biblioteca · {EXERCISES.length} ejercicios</p>
-
-          {/* Block selector */}
-          <div className="mb-3">
-            <p className="text-xs text-slate-500 font-medium mb-2">Agregar al bloque:</p>
-            <div className="flex gap-2 flex-wrap">
-              {BLOCKS.map(b => {
-                const s = BLOCK_STYLES[b];
-                return (
-                  <button key={b} onClick={() => setActiveBlock(b)}
-                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl font-semibold border transition-all ${
-                      activeBlock === b ? `${s.bg} ${s.border} ${s.text} shadow-sm` : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                    }`}>
-                    {s.icon} {b}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="relative mb-3">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar ejercicio..."
-              className="w-full border border-slate-200 rounded-2xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
-          </div>
-
-          <div className="flex gap-1.5 flex-wrap mb-3">
-            {CATEGORIES.map(cat => (
-              <button key={cat} onClick={() => setCategory(cat)}
-                className={`text-xs px-2.5 py-1 rounded-full font-medium transition-colors ${category === cat ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid gap-2 max-h-[480px] overflow-y-auto pr-1">
-            {filtered.map(ex => {
-              const inBlock = isAnyBlock(ex);
-              const blockOfEx = inBlock ? allSelected.find(e => e.id === ex.id)?.block : null;
-              const blockStyle = blockOfEx ? BLOCK_STYLES[blockOfEx] : null;
-              return (
-                <div key={ex.id}
-                  className={`p-3 rounded-2xl border-2 transition-all ${inBlock ? `${blockStyle?.bg || "bg-slate-50"} ${blockStyle?.border || "border-slate-200"}` : "border-slate-100 bg-white hover:border-slate-300"}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-800 text-sm">{ex.name}</p>
-                      <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{ex.description}</p>
-                      <div className="flex gap-1.5 mt-1.5 flex-wrap">
-                        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{ex.category}</span>
-                        {blockOfEx && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${blockStyle?.text} bg-white/70`}>{blockStyle?.icon} {blockOfEx}</span>}
-                      </div>
-                    </div>
-                    <button onClick={() => inBlock ? removeExercise(ex, blockOfEx) : addExercise(ex)}
-                      className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-xl font-semibold transition-colors ${inBlock ? "bg-white/70 text-slate-500 hover:bg-red-50 hover:text-red-500" : "bg-teal-50 text-teal-700 hover:bg-teal-100"}`}>
-                      {inBlock ? "✕" : "+"}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-            {filtered.length === 0 && <div className="text-center py-10 text-slate-400 text-sm">Sin resultados</div>}
-          </div>
-        </div>
-
-        {/* RIGHT — Plan */}
-        <div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Plan · {totalCount} ejercicios</p>
-
-          {totalCount === 0 ? (
-            <div className="bg-slate-50 rounded-2xl p-10 text-center text-slate-400 text-sm border-2 border-dashed border-slate-200 mb-4">
-              <p className="text-3xl mb-2">💪</p>
-              Selecciona ejercicios de la biblioteca
-            </div>
-          ) : (
-            <div className="grid gap-3 max-h-[420px] overflow-y-auto pr-1 mb-4">
-              {BLOCKS.map(blockName => {
-                const exList = selected[blockName];
-                if (!exList.length) return null;
-                const style = BLOCK_STYLES[blockName];
-                return (
-                  <div key={blockName}>
-                    <div className={`flex items-center gap-2 rounded-xl px-3 py-2 mb-2 ${style.bg} border ${style.border}`}>
-                      <span>{style.icon}</span>
-                      <span className={`font-bold text-xs ${style.text}`}>{blockName}</span>
-                      <span className={`ml-auto text-xs font-semibold ${style.text} bg-white/60 px-1.5 py-0.5 rounded-full`}>{exList.length}</span>
-                    </div>
-                    {exList.map((ex, i) => (
-                      <div key={ex.id} className="bg-white border border-slate-100 rounded-2xl p-3 mb-2 shadow-sm">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex-1 min-w-0">
-                            <span className={`text-xs font-bold ${style.text}`}>#{i+1}</span>
-                            <p className="font-semibold text-slate-800 text-sm leading-tight">{ex.name}</p>
-                          </div>
-                          <button onClick={() => removeExercise(ex, blockName)} className="text-slate-300 hover:text-red-400 text-xl leading-none flex-shrink-0 transition-colors">×</button>
-                        </div>
-                        <div className="flex gap-2">
-                          <div className="flex-1">
-                            <label className="text-xs text-slate-400 block mb-1">Series</label>
-                            <input type="number" value={ex.sets} min="1" onChange={e => updateExercise(ex.id, blockName, "sets", e.target.value)}
-                              className="w-full border border-slate-200 rounded-xl px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 text-center font-bold" />
-                          </div>
-                          <div className="flex-1">
-                            <label className="text-xs text-slate-400 block mb-1">Reps / Tiempo</label>
-                            <input type="text" value={ex.reps} onChange={e => updateExercise(ex.id, blockName, "reps", e.target.value)}
-                              className="w-full border border-slate-200 rounded-xl px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 text-center font-bold" />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Nota para el paciente (indicaciones, frecuencia, precauciones...)"
-            className="w-full border border-slate-200 rounded-2xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 resize-none mb-3 bg-white" rows={3} />
-
-          <button onClick={send} disabled={!totalCount || loading}
-            className={`w-full py-3.5 rounded-2xl font-bold text-sm transition-all shadow-sm ${totalCount > 0 ? "bg-gradient-to-r from-teal-500 to-teal-600 text-white hover:from-teal-600 hover:to-teal-700" : "bg-slate-100 text-slate-400 cursor-not-allowed"}`}>
-            {loading ? "Guardando..." : `Guardar plan · ${totalCount} ejercicios`}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── AGENDA ───────────────────────────────────────────────────────────────────
 function AgendaView({ user }) {
-  const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ patient_name:"", date:"", time:"", type:"Presencial" });
+  const [appointments,setAppointments] = useState([]);
+  const [loading,setLoading]           = useState(true);
+  const [weekOffset,setWeekOffset]     = useState(0);
+  const [showForm,setShowForm]         = useState(null); // {date,time}
+  const [form,setForm]                 = useState({patient_name:"",type:"Presencial"});
 
-  useEffect(() => { fetchAppointments(); }, []);
+  useEffect(()=>{ fetchAppointments(); },[]);
 
   const fetchAppointments = async () => {
-    const { data } = await supabase.from("appointments").select("*").order("date", { ascending: true });
-    setAppointments(data || []); setLoading(false);
+    const {data} = await supabase.from("appointments").select("*").order("date",{ascending:true});
+    setAppointments(data||[]); setLoading(false);
+  };
+
+  // Build week days
+  const today = new Date();
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay() + 1 + weekOffset*7); // Monday
+
+  const weekDays = Array.from({length:7},(_,i)=>{
+    const d = new Date(startOfWeek);
+    d.setDate(startOfWeek.getDate()+i);
+    return d;
+  });
+
+  const getAppts = (date,hour) => {
+    const dateStr = date.toISOString().split("T")[0];
+    return appointments.filter(a=>a.date===dateStr&&a.time===hour);
   };
 
   const addAppointment = async () => {
-    if (!form.patient_name || !form.date) return;
-    await supabase.from("appointments").insert({ ...form, therapist_id: user.id });
-    setForm({ patient_name:"", date:"", time:"", type:"Presencial" });
-    setShowForm(false); fetchAppointments();
+    if(!form.patient_name||!showForm) return;
+    await supabase.from("appointments").insert({
+      therapist_id:user.id, patient_name:form.patient_name, type:form.type,
+      date:showForm.date, time:showForm.time, status:"confirmada"
+    });
+    setShowForm(null); setForm({patient_name:"",type:"Presencial"});
+    fetchAppointments();
   };
 
-  const typeColors = { Presencial: "bg-blue-50 text-blue-700", Videollamada: "bg-violet-50 text-violet-700" };
+  const deleteAppt = async (id,e) => {
+    e.stopPropagation();
+    await supabase.from("appointments").delete().eq("id",id);
+    fetchAppointments();
+  };
+
+  const dayNames = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+  const typeColor = { Presencial:`rgba(59,130,246,0.8)`, Videollamada:`rgba(139,92,246,0.8)` };
+
+  const weekLabel = () => {
+    const opts = {day:"numeric",month:"short"};
+    return `${weekDays[0].toLocaleDateString("es-CO",opts)} – ${weekDays[6].toLocaleDateString("es-CO",opts)}`;
+  };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 style={{ fontFamily: "'Fraunces', serif" }} className="text-2xl font-bold text-slate-800">Agenda</h2>
-          <p className="text-slate-400 text-sm mt-0.5">{appointments.length} citas</p>
-        </div>
-        <button onClick={() => setShowForm(!showForm)}
-          className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-2xl text-sm font-semibold transition-colors shadow-sm">
-          + Nueva cita
-        </button>
-      </div>
-
+      {/* Calendar form modal */}
       {showForm && (
-        <div className="bg-gradient-to-br from-teal-50 to-white border border-teal-200 rounded-3xl p-5 mb-5 shadow-sm">
-          <div className="grid grid-cols-2 gap-3">
-            <input value={form.patient_name} onChange={e => setForm({...form, patient_name: e.target.value})} placeholder="Nombre del paciente *"
-              className="col-span-2 border border-slate-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
-            <input value={form.date} onChange={e => setForm({...form, date: e.target.value})} type="date"
-              className="border border-slate-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
-            <input value={form.time} onChange={e => setForm({...form, time: e.target.value})} type="time"
-              className="border border-slate-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white" />
-            <select value={form.type} onChange={e => setForm({...form, type: e.target.value})}
-              className="col-span-2 border border-slate-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-white">
-              <option>Presencial</option><option>Videollamada</option>
-            </select>
-            <div className="col-span-2 flex gap-2">
-              <button onClick={addAppointment} className="flex-1 bg-teal-600 text-white py-2.5 rounded-2xl text-sm font-semibold hover:bg-teal-700">Guardar</button>
-              <button onClick={() => setShowForm(false)} className="bg-white text-slate-500 px-4 py-2.5 rounded-2xl text-sm font-medium border border-slate-200">Cancelar</button>
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:50, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:24, width:"100%", maxWidth:360 }}>
+            <h3 style={{ color:C.text, fontWeight:600, margin:"0 0 4px" }}>Nueva cita</h3>
+            <p style={{ color:C.muted, fontSize:13, margin:"0 0 18px" }}>{showForm.date} · {showForm.time}</p>
+            <div style={{ display:"grid", gap:10, marginBottom:14 }}>
+              <input value={form.patient_name} onChange={e=>setForm({...form,patient_name:e.target.value})} placeholder="Nombre del paciente *" style={inp}/>
+              <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} style={inp}>
+                <option>Presencial</option><option>Videollamada</option>
+              </select>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={addAppointment} style={{ flex:1, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:12, padding:11, color:"#fff", fontWeight:700, cursor:"pointer" }}>Guardar</button>
+              <button onClick={()=>setShowForm(null)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 16px", color:C.muted, cursor:"pointer" }}>Cancelar</button>
             </div>
           </div>
         </div>
       )}
 
-      {loading ? <div className="text-center py-16"><div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>
-        : appointments.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-3xl border border-slate-100">
-            <p className="text-5xl mb-3">📅</p><p className="text-slate-400 font-medium">No hay citas programadas</p>
-          </div>
-        ) : (
-          <div className="grid gap-3">
-            {appointments.map(apt => (
-              <div key={apt.id} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-4">
-                  <div className="bg-teal-50 rounded-2xl px-3 py-3 text-center min-w-[64px] border border-teal-100">
-                    <p className="text-teal-700 font-bold text-lg leading-none">{apt.time || "--"}</p>
-                    <p className="text-teal-400 text-xs mt-1">{apt.date}</p>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+        <div>
+          <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:26, margin:0 }}>Agenda</h2>
+          <p style={{ color:C.muted, fontSize:13, marginTop:4 }}>{weekLabel()}</p>
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={()=>setWeekOffset(w=>w-1)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px 12px", color:C.muted, cursor:"pointer", fontSize:16 }}>←</button>
+          <button onClick={()=>setWeekOffset(0)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px 12px", color:C.accent, cursor:"pointer", fontSize:13, fontWeight:600 }}>Hoy</button>
+          <button onClick={()=>setWeekOffset(w=>w+1)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px 12px", color:C.muted, cursor:"pointer", fontSize:16 }}>→</button>
+        </div>
+      </div>
+
+      {loading ? <Spinner/> : (
+        <div style={{ overflowX:"auto" }}>
+          <div style={{ minWidth:700 }}>
+            {/* Day headers */}
+            <div style={{ display:"grid", gridTemplateColumns:`64px repeat(7,1fr)`, gap:0, marginBottom:2 }}>
+              <div/>
+              {weekDays.map((d,i)=>{
+                const isToday=d.toDateString()===new Date().toDateString();
+                return (
+                  <div key={i} style={{ textAlign:"center", padding:"8px 4px", borderRadius:12, background:isToday?"rgba(38,166,154,0.12)":"transparent" }}>
+                    <p style={{ color:C.muted, fontSize:11, fontWeight:600, margin:0 }}>{dayNames[i]}</p>
+                    <p style={{ color:isToday?C.accent:C.text, fontSize:20, fontWeight:700, margin:"2px 0 0" }}>{d.getDate()}</p>
                   </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-slate-800">{apt.patient_name}</p>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium mt-1 inline-block ${typeColors[apt.type] || "bg-slate-100 text-slate-500"}`}>{apt.type}</span>
-                  </div>
+                );
+              })}
+            </div>
+
+            {/* Hour rows */}
+            {HOURS.map(hour=>(
+              <div key={hour} style={{ display:"grid", gridTemplateColumns:`64px repeat(7,1fr)`, gap:0, borderTop:`1px solid ${C.border}22` }}>
+                {/* Hour label */}
+                <div style={{ padding:"8px 8px 8px 0", textAlign:"right" }}>
+                  <span style={{ color:C.dim, fontSize:11, fontWeight:500 }}>{hour}</span>
                 </div>
+                {/* Day cells */}
+                {weekDays.map((day,di)=>{
+                  const dateStr = day.toISOString().split("T")[0];
+                  const appts   = getAppts(day,hour);
+                  const canAdd  = appts.length < MAX_PER_SLOT;
+                  return (
+                    <div key={di}
+                      onClick={()=>canAdd&&setShowForm({date:dateStr,time:hour})}
+                      style={{ minHeight:52, padding:3, borderLeft:`1px solid ${C.border}22`, cursor:canAdd?"pointer":"default", transition:"background 0.15s" }}
+                      onMouseEnter={e=>{ if(canAdd) e.currentTarget.style.background="rgba(38,166,154,0.05)"; }}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      {appts.map(a=>(
+                        <div key={a.id}
+                          style={{ background:typeColor[a.type]||"rgba(38,166,154,0.6)", borderRadius:8, padding:"3px 7px", marginBottom:3, display:"flex", alignItems:"center", justifyContent:"space-between", gap:4 }}>
+                          <span style={{ color:"#fff", fontSize:11, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1 }}>{a.patient_name}</span>
+                          <button onClick={e=>deleteAppt(a.id,e)} style={{ background:"rgba(0,0,0,0.2)", border:"none", borderRadius:4, color:"rgba(255,255,255,0.7)", cursor:"pointer", padding:"0 4px", fontSize:12, flexShrink:0 }}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
-        )}
+        </div>
+      )}
+
+      <p style={{ color:C.dim, fontSize:12, marginTop:12 }}>Haz clic en cualquier celda para agregar una cita · Máx. {MAX_PER_SLOT} por hora</p>
     </div>
   );
 }
 
 // ─── MESSAGES ─────────────────────────────────────────────────────────────────
 function MessagesView({ user }) {
-  const [messages, setMessages] = useState([]);
-  const [active, setActive]     = useState(null);
-  const [reply, setReply]       = useState("");
-  const [loading, setLoading]   = useState(true);
+  const [messages,setMessages] = useState([]);
+  const [active,setActive]     = useState(null);
+  const [reply,setReply]       = useState("");
+  const [loading,setLoading]   = useState(true);
 
-  useEffect(() => { fetchMessages(); }, []);
+  useEffect(()=>{ fetchMessages(); },[]);
 
   const fetchMessages = async () => {
-    const { data } = await supabase.from("messages").select("*").order("created_at", { ascending: false });
-    setMessages(data || []);
-    if (data?.length > 0) setActive(data[0]);
+    const {data} = await supabase.from("messages").select("*").order("created_at",{ascending:false});
+    setMessages(data||[]);
+    if(data?.length>0) setActive(data[0]);
     setLoading(false);
   };
 
   const sendReply = async () => {
-    if (!reply.trim() || !active) return;
-    await supabase.from("messages").insert({ therapist_id: user.id, patient_name: active.patient_name, content: reply, sender: "therapist", unread: false });
+    if(!reply.trim()||!active) return;
+    await supabase.from("messages").insert({therapist_id:user.id,patient_name:active.patient_name,content:reply,sender:"therapist",unread:false});
     setReply(""); fetchMessages();
   };
 
-  const initials = (name) => name ? name.split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase() : "?";
-
   return (
     <div>
-      <h2 style={{ fontFamily: "'Fraunces', serif" }} className="text-2xl font-bold text-slate-800 mb-6">Mensajes</h2>
-      {loading ? <div className="text-center py-16"><div className="w-8 h-8 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto" /></div>
-        : messages.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-3xl border border-slate-100">
-            <p className="text-5xl mb-3">💬</p><p className="text-slate-400 font-medium">Sin mensajes aún</p>
+      <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:26, margin:"0 0 20px" }}>Mensajes</h2>
+      {loading ? <Spinner/> : messages.length===0 ? (
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:48, textAlign:"center" }}>
+          <div style={{ fontSize:48, marginBottom:12 }}>💬</div>
+          <p style={{ color:C.muted }}>Sin mensajes aún</p>
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:12, height:520 }}>
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, overflowY:"auto" }}>
+            {messages.map(msg=>(
+              <button key={msg.id} onClick={()=>setActive(msg)}
+                style={{ width:"100%", padding:14, display:"flex", gap:10, alignItems:"flex-start", background:active?.id===msg.id?"rgba(38,166,154,0.1)":"transparent", border:"none", borderLeft:active?.id===msg.id?`3px solid ${C.accent}`:"3px solid transparent", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
+                <Avatar name={msg.patient_name||"?"} size={34}/>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ color:C.text, fontWeight:600, fontSize:13, margin:0 }}>{msg.patient_name}</p>
+                  <p style={{ color:C.muted, fontSize:12, margin:"3px 0 0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{msg.content}</p>
+                </div>
+              </button>
+            ))}
           </div>
-        ) : (
-          <div className="grid md:grid-cols-5 gap-4 h-[520px]">
-            <div className="md:col-span-2 bg-white rounded-2xl border border-slate-100 overflow-y-auto shadow-sm">
-              {messages.map(msg => (
-                <button key={msg.id} onClick={() => setActive(msg)}
-                  className={`w-full p-4 text-left border-b border-slate-50 hover:bg-slate-50 transition-colors ${active?.id === msg.id ? "bg-teal-50 border-l-2 border-l-teal-500" : ""}`}>
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 bg-gradient-to-br from-teal-400 to-teal-600 text-white rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0">
-                      {initials(msg.patient_name)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-slate-800 text-sm">{msg.patient_name}</p>
-                      <p className="text-xs text-slate-400 truncate mt-0.5">{msg.content}</p>
-                    </div>
+          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, display:"flex", flexDirection:"column" }}>
+            {active && (
+              <>
+                <div style={{ padding:16, borderBottom:`1px solid ${C.border}`, display:"flex", gap:10, alignItems:"center" }}>
+                  <Avatar name={active.patient_name||"?"} size={36}/>
+                  <p style={{ color:C.text, fontWeight:600, margin:0 }}>{active.patient_name}</p>
+                </div>
+                <div style={{ flex:1, padding:16 }}>
+                  <div style={{ background:active.sender==="therapist"?`linear-gradient(135deg,${C.accent},#1a7a75)`:C.surface, border:active.sender==="therapist"?"none":`1px solid ${C.border}`, borderRadius:16, borderTopRightRadius:active.sender==="therapist"?4:16, borderTopLeftRadius:active.sender==="therapist"?16:4, padding:"10px 14px", maxWidth:"75%", marginLeft:active.sender==="therapist"?"auto":"0", fontSize:14, color:C.text }}>
+                    {active.content}
                   </div>
-                </button>
-              ))}
-            </div>
-            <div className="md:col-span-3 bg-white rounded-2xl border border-slate-100 flex flex-col shadow-sm">
-              {active && (
-                <>
-                  <div className="p-4 border-b border-slate-100 flex items-center gap-3">
-                    <div className="w-9 h-9 bg-gradient-to-br from-teal-400 to-teal-600 text-white rounded-xl flex items-center justify-center text-xs font-bold">
-                      {initials(active.patient_name)}
-                    </div>
-                    <p className="font-semibold text-slate-800">{active.patient_name}</p>
-                  </div>
-                  <div className="flex-1 p-4">
-                    <div className={`rounded-2xl p-3 max-w-xs text-sm ${active.sender === "therapist" ? "bg-teal-600 text-white ml-auto rounded-tr-sm" : "bg-slate-50 text-slate-800 rounded-tl-sm"}`}>
-                      {active.content}
-                    </div>
-                  </div>
-                  <div className="p-4 border-t border-slate-100 flex gap-2">
-                    <input value={reply} onChange={e => setReply(e.target.value)} onKeyDown={e => e.key === "Enter" && sendReply()} placeholder="Escribe tu respuesta..."
-                      className="flex-1 border border-slate-200 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 bg-slate-50" />
-                    <button onClick={sendReply} className="bg-teal-600 hover:bg-teal-700 text-white w-11 h-11 rounded-2xl flex items-center justify-center transition-colors flex-shrink-0">
-                      <svg className="w-4 h-4 rotate-90" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+                </div>
+                <div style={{ padding:14, borderTop:`1px solid ${C.border}`, display:"flex", gap:10 }}>
+                  <input value={reply} onChange={e=>setReply(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendReply()} placeholder="Escribe tu respuesta..."
+                    style={{...inp,flex:1}}/>
+                  <button onClick={sendReply} style={{ width:44, height:44, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="white" style={{transform:"rotate(90deg)"}}><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        )}
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── INVITE HANDLER ────────────────────────────────────────────────────────────
 function InviteHandler({ token, user }) {
-  const [status, setStatus] = useState("linking");
-  useEffect(() => {
-    supabase.from("patients").update({ user_id: user.id }).eq("invite_token", token)
-      .then(({ error }) => {
-        window.history.replaceState({}, "", window.location.pathname);
-        setStatus(error ? "error" : "success");
-        if (!error) setTimeout(() => window.location.reload(), 1500);
-      });
-  }, []);
-
+  const [status,setStatus] = useState("linking");
+  useEffect(()=>{
+    supabase.from("patients").update({user_id:user.id}).eq("invite_token",token).then(({error})=>{
+      window.history.replaceState({},"",window.location.pathname);
+      setStatus(error?"error":"success");
+      if(!error) setTimeout(()=>window.location.reload(),1500);
+    });
+  },[]);
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-      <div className="text-center bg-white rounded-3xl p-8 shadow-sm border border-slate-100 max-w-xs w-full">
-        {status === "linking" && <><div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" /><p className="text-slate-500">Vinculando tu cuenta...</p></>}
-        {status === "success" && <><div className="text-5xl mb-4">✅</div><p className="text-emerald-600 font-semibold text-lg">¡Listo!</p><p className="text-slate-400 text-sm mt-1">Cargando tu plan...</p></>}
-        {status === "error" && <><div className="text-5xl mb-4">⚠️</div><p className="text-red-500 font-semibold">Error al vincular</p><p className="text-slate-400 text-sm mt-1">Contacta a tu fisioterapeuta</p></>}
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:24, padding:32, textAlign:"center", maxWidth:320, width:"100%" }}>
+        {status==="linking" && <><div style={{ width:44, height:44, border:`4px solid ${C.accent}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 1s linear infinite", margin:"0 auto 16px" }}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style><p style={{ color:C.muted }}>Vinculando tu cuenta...</p></>}
+        {status==="success" && <><div style={{ fontSize:48, marginBottom:12 }}>✅</div><p style={{ color:"#34d399", fontWeight:600, fontSize:18 }}>¡Listo!</p><p style={{ color:C.muted, fontSize:13, marginTop:6 }}>Cargando tu plan...</p></>}
+        {status==="error" && <><div style={{ fontSize:48, marginBottom:12 }}>⚠️</div><p style={{ color:C.danger, fontWeight:600 }}>Error al vincular</p><p style={{ color:C.muted, fontSize:13 }}>Contacta a tu fisioterapeuta</p></>}
       </div>
     </div>
   );
@@ -838,49 +874,49 @@ function InviteHandler({ token, user }) {
 
 // ─── THERAPIST APP ─────────────────────────────────────────────────────────────
 function TherapistApp({ user }) {
-  const [tab, setTab]                 = useState("patients");
-  const [prescribePatient, setPrescribePatient] = useState(null);
-  const [profilePatient, setProfilePatient]     = useState(null);
+  const [tab,setTab]                         = useState("patients");
+  const [prescribePatient,setPrescribePatient]= useState(null);
+  const [profilePatient,setProfilePatient]   = useState(null);
 
-  const handleViewProfile = (p) => { setProfilePatient(p); setPrescribePatient(null); };
-  const handlePrescribe   = (p) => { setPrescribePatient(p); setProfilePatient(null); };
-  const handleBack        = ()  => { setPrescribePatient(null); setProfilePatient(null); };
+  const handleViewProfile = p=>{ setProfilePatient(p); setPrescribePatient(null); };
+  const handlePrescribe   = p=>{ setPrescribePatient(p); setProfilePatient(null); };
+  const handleBack        = ()=>{ setPrescribePatient(null); setProfilePatient(null); };
 
-  const navItems = [
-    { id: "patients", icon: "👤", label: "Pacientes" },
-    { id: "agenda",   icon: "📅", label: "Agenda" },
-    { id: "messages", icon: "💬", label: "Mensajes" },
-  ];
+  const navItems=[{id:"patients",icon:"👤",label:"Pacientes"},{id:"agenda",icon:"📅",label:"Agenda"},{id:"messages",icon:"💬",label:"Mensajes"}];
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-teal-500 to-teal-700 rounded-xl flex items-center justify-center text-white font-bold shadow-sm">F</div>
-            <span style={{ fontFamily: "'Fraunces', serif" }} className="font-bold text-slate-800 text-lg">FisioApp</span>
+    <div style={{ minHeight:"100vh", background:C.bg }}>
+      <header style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ maxWidth:1100, margin:"0 auto", padding:"14px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:36, height:36, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, color:"#fff", boxShadow:`0 0 20px rgba(38,166,154,0.2)` }}>F</div>
+            <span style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:18, fontWeight:700 }}>FisioApp</span>
           </div>
-          <button onClick={() => supabase.auth.signOut()} className="text-xs text-slate-400 hover:text-slate-600 font-medium transition-colors">Salir</button>
+          <button onClick={()=>supabase.auth.signOut()} style={{ color:C.muted, background:"none", border:"none", cursor:"pointer", fontSize:13, fontWeight:500 }}>Salir</button>
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 pt-5">
-        <div className="flex gap-1 bg-slate-100 rounded-2xl p-1 mb-6">
-          {navItems.map(item => (
-            <button key={item.id} onClick={() => { setTab(item.id); handleBack(); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all ${tab === item.id ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-              <span>{item.icon}</span><span className="hidden sm:inline">{item.label}</span>
+      <div style={{ maxWidth:1100, margin:"0 auto", padding:"20px 20px 0" }}>
+        <div style={{ display:"flex", gap:4, background:C.surface, border:`1px solid ${C.border}`, borderRadius:18, padding:4, marginBottom:24 }}>
+          {navItems.map(item=>(
+            <button key={item.id} onClick={()=>{ setTab(item.id); handleBack(); }}
+              style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"10px", borderRadius:14, border:"none", cursor:"pointer", fontWeight:600, fontSize:14, transition:"all 0.2s",
+                background: tab===item.id?C.accent:"transparent",
+                color: tab===item.id?"#fff":C.muted
+              }}>
+              {item.icon} <span style={{ display:"none" }} className="sm:inline">{item.label}</span>
+              <span>{item.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      <main className="max-w-5xl mx-auto px-4 pb-10">
-        {tab === "patients" && !prescribePatient && !profilePatient && <PatientsView user={user} onPrescribe={handlePrescribe} onViewProfile={handleViewProfile} />}
-        {tab === "patients" && prescribePatient && <PrescribeView user={user} patient={prescribePatient} onBack={handleBack} />}
-        {tab === "patients" && profilePatient && <PatientProfile patient={profilePatient} user={user} onBack={handleBack} onPrescribe={handlePrescribe} />}
-        {tab === "agenda" && <AgendaView user={user} />}
-        {tab === "messages" && <MessagesView user={user} />}
+      <main style={{ maxWidth:1100, margin:"0 auto", padding:"0 20px 40px" }}>
+        {tab==="patients"&&!prescribePatient&&!profilePatient && <PatientsView user={user} onPrescribe={handlePrescribe} onViewProfile={handleViewProfile}/>}
+        {tab==="patients"&&prescribePatient && <PrescribeView user={user} patient={prescribePatient} onBack={handleBack}/>}
+        {tab==="patients"&&profilePatient && <PatientProfile patient={profilePatient} user={user} onBack={handleBack} onPrescribe={handlePrescribe}/>}
+        {tab==="agenda" && <AgendaView user={user}/>}
+        {tab==="messages" && <MessagesView user={user}/>}
       </main>
     </div>
   );
@@ -888,52 +924,41 @@ function TherapistApp({ user }) {
 
 // ─── MAIN ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [user, setUser]               = useState(undefined); // undefined = still loading
-  const [role, setRole]               = useState(null);
-  const [inviteToken, setInviteToken] = useState(null);
+  const [user,setUser]               = useState(undefined);
+  const [role,setRole]               = useState(null);
+  const [inviteToken,setInviteToken] = useState(null);
 
-  useEffect(() => {
+  useEffect(()=>{
     const params = new URLSearchParams(window.location.search);
     const token = params.get("invite");
-    if (token) setInviteToken(token);
+    if(token) setInviteToken(token);
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
-      setRole(null);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+    supabase.auth.getSession().then(({data:{session}})=>{ setUser(session?.user??null); });
+    const {data:{subscription}} = supabase.auth.onAuthStateChange((_e,session)=>{ setUser(session?.user??null); setRole(null); });
+    return ()=>subscription.unsubscribe();
+  },[]);
 
-  useEffect(() => {
-    if (!user) { setRole(null); return; }
-    supabase.from("patients").select("id").eq("user_id", user.id).maybeSingle()
-      .then(({ data }) => setRole(data ? "patient" : "therapist"));
-  }, [user]);
+  useEffect(()=>{
+    if(!user){ setRole(null); return; }
+    supabase.from("patients").select("id").eq("user_id",user.id).maybeSingle().then(({data})=>setRole(data?"patient":"therapist"));
+  },[user]);
 
-  // Still checking session
-  if (user === undefined) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-slate-400 text-sm">Cargando...</p>
-      </div>
+  if(user===undefined) return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ width:40, height:40, border:`4px solid ${C.accent}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 1s linear infinite" }}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 
-  // Not logged in
-  if (!user) return <LoginView />;
-
-  // Logged in but role not loaded yet
-  if (role === null) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" />
+  if(!user) return <LoginView/>;
+  if(user&&role===null) return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ width:36, height:36, border:`4px solid ${C.accent}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 1s linear infinite" }}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 
-  if (inviteToken) return <InviteHandler token={inviteToken} user={user} />;
-  if (role === "patient") return <PatientApp user={user} />;
-  return <TherapistApp user={user} />;
+  if(inviteToken) return <InviteHandler token={inviteToken} user={user}/>;
+  if(role==="patient") return <PatientApp user={user}/>;
+  return <TherapistApp user={user}/>;
 }

@@ -1,144 +1,127 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabase";
 
-const BLOCK_COLORS = {
-  "Terapia":                { bg: "bg-rose-50",    border: "border-rose-200",   text: "text-rose-700",   dot: "bg-rose-400",   icon: "🩺" },
-  "Calentamiento / Activación": { bg: "bg-amber-50",   border: "border-amber-200",  text: "text-amber-700",  dot: "bg-amber-400",  icon: "🔥" },
-  "Trabajo central":        { bg: "bg-teal-50",    border: "border-teal-200",   text: "text-teal-700",   dot: "bg-teal-400",   icon: "💪" },
-  "Sin bloque":             { bg: "bg-slate-50",   border: "border-slate-200",  text: "text-slate-600",  dot: "bg-slate-300",  icon: "📋" },
+// ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
+const C = {
+  bg:      "#0f1117",
+  surface: "#1a1d27",
+  card:    "#21253a",
+  border:  "#2d3348",
+  accent:  "#26a69a",
+  accentL: "#80cbc4",
+  text:    "#e2e8f0",
+  muted:   "#8892a4",
+  dim:     "#4a5270",
 };
 
-function getBlockStyle(block) {
-  return BLOCK_COLORS[block] || BLOCK_COLORS["Sin bloque"];
-}
+const BLOCK_META = {
+  "Terapia":                { color:"#f87171", bg:"rgba(248,113,113,0.12)", icon:"🩺" },
+  "Calentamiento / Activación": { color:"#fbbf24", bg:"rgba(251,191,36,0.12)",  icon:"🔥" },
+  "Trabajo central":        { color:"#34d399", bg:"rgba(52,211,153,0.12)",  icon:"💪" },
+  "Sin bloque":             { color:"#8892a4", bg:"rgba(136,146,164,0.1)",  icon:"📋" },
+};
 
-function ProgressRing({ pct, size = 80 }) {
+function ProgressRing({ pct, size = 88 }) {
   const r = (size - 10) / 2;
   const circ = 2 * Math.PI * r;
-  const offset = circ - (pct / 100) * circ;
   return (
-    <svg width={size} height={size} className="-rotate-90">
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#f1f5f9" strokeWidth={8} />
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#0d9488" strokeWidth={8}
-        strokeDasharray={circ} strokeDashoffset={offset}
-        strokeLinecap="round" style={{ transition: "stroke-dashoffset 0.6s ease" }} />
+    <svg width={size} height={size} style={{ transform:"rotate(-90deg)" }}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.border} strokeWidth={8}/>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.accent} strokeWidth={8}
+        strokeDasharray={circ} strokeDashoffset={circ - (pct/100)*circ}
+        strokeLinecap="round" style={{ transition:"stroke-dashoffset 0.7s ease" }}/>
     </svg>
   );
 }
 
 function ProgressDashboard({ patient, prescriptions, completedLogs }) {
-  const last7 = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d;
-  });
+  const last7 = Array.from({length:7},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-(6-i)); return d; });
   const logsPerDay = last7.map(day => ({
-    day, count: completedLogs.filter(l =>
-      new Date(l.completed_at).toDateString() === day.toDateString()).length
+    day, count: completedLogs.filter(l => new Date(l.completed_at).toDateString()===day.toDateString()).length
   }));
-  const maxCount = Math.max(...logsPerDay.map(d => d.count), 1);
+  const maxCount = Math.max(...logsPerDay.map(d=>d.count),1);
   let streak = 0;
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    if (completedLogs.some(l => new Date(l.completed_at).toDateString() === d.toDateString())) streak++;
-    else if (i > 0) break;
+  for(let i=0;i<30;i++){
+    const d=new Date(); d.setDate(d.getDate()-i);
+    if(completedLogs.some(l=>new Date(l.completed_at).toDateString()===d.toDateString())) streak++;
+    else if(i>0) break;
   }
   const latestPres = prescriptions[0];
-  const totalEx = latestPres?.exercises?.length || 0;
-  const todayDone = completedLogs.filter(l =>
-    new Date(l.completed_at).toDateString() === new Date().toDateString()).length;
-  const todayPct = totalEx > 0 ? Math.round((todayDone / totalEx) * 100) : 0;
-  const dayShort = ["D","L","M","X","J","V","S"];
+  const totalEx    = latestPres?.exercises?.length||0;
+  const todayDone  = completedLogs.filter(l=>new Date(l.completed_at).toDateString()===new Date().toDateString()).length;
+  const pct        = totalEx>0?Math.round((todayDone/totalEx)*100):0;
+  const dayShort   = ["D","L","M","X","J","V","S"];
 
   return (
-    <div className="pb-6">
-      {/* Hero card */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-500 to-teal-700 p-6 mb-5 text-white">
-        <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/10" />
-        <div className="absolute -bottom-12 -left-6 w-32 h-32 rounded-full bg-white/10" />
-        <div className="relative flex items-center justify-between">
+    <div style={{ paddingBottom:24 }}>
+      {/* Hero */}
+      <div style={{ background:"linear-gradient(135deg,#1e3a3a,#0f2a2a)", border:`1px solid ${C.border}`, borderRadius:24, padding:24, marginBottom:16, position:"relative", overflow:"hidden" }}>
+        <div style={{ position:"absolute", top:-30, right:-30, width:120, height:120, borderRadius:"50%", background:"rgba(38,166,154,0.08)" }}/>
+        <div style={{ position:"absolute", bottom:-20, left:-20, width:80, height:80, borderRadius:"50%", background:"rgba(38,166,154,0.08)" }}/>
+        <div style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div>
-            <p className="text-teal-100 text-sm mb-1">Progreso de hoy</p>
-            <p className="text-4xl font-bold">{todayDone}<span className="text-2xl text-teal-200">/{totalEx}</span></p>
-            <p className="text-teal-100 text-sm mt-1">ejercicios completados</p>
+            <p style={{ color:C.accentL, fontSize:12, marginBottom:4 }}>Progreso de hoy</p>
+            <p style={{ fontSize:40, fontWeight:700, color:C.text, lineHeight:1 }}>{todayDone}<span style={{ fontSize:22, color:C.muted }}>/{totalEx}</span></p>
+            <p style={{ color:C.muted, fontSize:13, marginTop:4 }}>ejercicios completados</p>
           </div>
-          <div className="relative flex items-center justify-center">
-            <ProgressRing pct={todayPct} size={90} />
-            <span className="absolute text-lg font-bold">{todayPct}%</span>
+          <div style={{ position:"relative", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <ProgressRing pct={pct} />
+            <span style={{ position:"absolute", fontSize:16, fontWeight:700, color:C.accent }}>{pct}%</span>
           </div>
         </div>
-        {todayPct === 100 && (
-          <div className="relative mt-3 bg-white/20 rounded-xl px-3 py-2 text-sm font-medium">
-            🎉 ¡Completaste todo tu plan de hoy!
-          </div>
-        )}
+        {pct===100 && <div style={{ marginTop:12, background:"rgba(38,166,154,0.2)", border:"1px solid rgba(38,166,154,0.3)", borderRadius:12, padding:"8px 14px", fontSize:13, color:C.accentL }}>🎉 ¡Completaste todo tu plan!</div>}
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
-        {[
-          { val: streak, label: "Racha", emoji: "🔥", color: "from-orange-400 to-rose-500" },
-          { val: completedLogs.length, label: "Total", emoji: "✅", color: "from-blue-400 to-indigo-500" },
-          { val: prescriptions.length, label: "Planes", emoji: "📋", color: "from-violet-400 to-purple-500" },
-        ].map((s, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-slate-100 p-3 text-center shadow-sm">
-            <p className="text-xl mb-0.5">{s.emoji}</p>
-            <p className="text-2xl font-bold text-slate-800">{s.val}</p>
-            <p className="text-xs text-slate-400 mt-0.5">{s.label}</p>
+      {/* Stats */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
+        {[{v:streak,l:"Racha",e:"🔥"},{v:completedLogs.length,l:"Total",e:"✅"},{v:`${pct}%`,l:"Hoy",e:"📅"}].map((s,i)=>(
+          <div key={i} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:"14px 8px", textAlign:"center" }}>
+            <div style={{ fontSize:20 }}>{s.e}</div>
+            <div style={{ fontSize:24, fontWeight:700, color:C.text, marginTop:2 }}>{s.v}</div>
+            <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{s.l}</div>
           </div>
         ))}
       </div>
 
       {/* Bar chart */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-5 mb-4 shadow-sm">
-        <p className="font-semibold text-slate-700 text-sm mb-4">Últimos 7 días</p>
-        <div className="flex items-end justify-between gap-2 h-24">
-          {logsPerDay.map(({ day, count }, i) => {
-            const isToday = day.toDateString() === new Date().toDateString();
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:20, marginBottom:14 }}>
+        <p style={{ fontSize:13, fontWeight:600, color:C.muted, marginBottom:16, textTransform:"uppercase", letterSpacing:1 }}>Últimos 7 días</p>
+        <div style={{ display:"flex", alignItems:"flex-end", gap:8, height:80 }}>
+          {logsPerDay.map(({day,count},i)=>{
+            const isToday = day.toDateString()===new Date().toDateString();
             return (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
-                {count > 0 && <span className="text-xs font-semibold text-slate-500">{count}</span>}
-                <div className="w-full rounded-xl transition-all duration-500 min-h-[4px]"
-                  style={{
-                    height: `${count > 0 ? Math.max((count / maxCount) * 80, 12) : 4}px`,
-                    background: isToday ? "linear-gradient(135deg,#0d9488,#14b8a6)" :
-                      count > 0 ? "#99f6e4" : "#f1f5f9"
-                  }} />
-                <span className={`text-xs font-medium ${isToday ? "text-teal-600" : "text-slate-400"}`}>
-                  {dayShort[day.getDay()]}
-                </span>
+              <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
+                {count>0 && <span style={{ fontSize:11, color:C.muted }}>{count}</span>}
+                <div style={{ width:"100%", borderRadius:8, minHeight:3, transition:"height 0.5s ease",
+                  height:`${count>0?Math.max((count/maxCount)*60,10):3}px`,
+                  background: isToday ? `linear-gradient(180deg,${C.accentL},${C.accent})` : count>0 ? "rgba(38,166,154,0.4)" : C.border
+                }}/>
+                <span style={{ fontSize:11, color: isToday?C.accent:C.dim }}>{dayShort[day.getDay()]}</span>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* Calendar heatmap */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
-        <p className="font-semibold text-slate-700 text-sm mb-3">Consistencia (30 días)</p>
-        <div className="flex flex-wrap gap-1.5">
-          {Array.from({ length: 30 }, (_, i) => {
-            const d = new Date(); d.setDate(d.getDate() - (29 - i));
-            const count = completedLogs.filter(l =>
-              new Date(l.completed_at).toDateString() === d.toDateString()).length;
-            const isToday = d.toDateString() === new Date().toDateString();
+      {/* Heatmap */}
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:20 }}>
+        <p style={{ fontSize:13, fontWeight:600, color:C.muted, marginBottom:12, textTransform:"uppercase", letterSpacing:1 }}>Consistencia · 30 días</p>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+          {Array.from({length:30},(_,i)=>{
+            const d=new Date(); d.setDate(d.getDate()-(29-i));
+            const count=completedLogs.filter(l=>new Date(l.completed_at).toDateString()===d.toDateString()).length;
+            const isToday=d.toDateString()===new Date().toDateString();
             return (
-              <div key={i} title={`${d.toLocaleDateString("es-CO")}: ${count} ej.`}
-                className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold
-                  ${isToday ? "ring-2 ring-teal-500 ring-offset-1" : ""}
-                  ${count === 0 ? "bg-slate-100 text-slate-300" :
-                    count <= 2 ? "bg-teal-100 text-teal-600" :
-                    count <= 5 ? "bg-teal-300 text-teal-800" :
-                    "bg-teal-500 text-white"}`}>
+              <div key={i} title={`${d.toLocaleDateString("es-CO")}: ${count}`}
+                style={{ width:26, height:26, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center",
+                  fontSize:10, fontWeight:600, outline: isToday?`2px solid ${C.accent}`:undefined, outlineOffset:2,
+                  background: count===0?C.border:count<=2?"rgba(38,166,154,0.25)":count<=5?"rgba(38,166,154,0.55)":"rgba(38,166,154,0.9)",
+                  color: count===0?C.dim:C.text
+                }}>
                 {d.getDate()}
               </div>
             );
           })}
-        </div>
-        <div className="flex items-center gap-2 mt-3">
-          <span className="text-xs text-slate-400">Menos</span>
-          {["bg-slate-100","bg-teal-100","bg-teal-300","bg-teal-500"].map((c,i) => (
-            <div key={i} className={`w-4 h-4 rounded-md ${c}`} />
-          ))}
-          <span className="text-xs text-slate-400">Más</span>
         </div>
       </div>
     </div>
@@ -146,269 +129,208 @@ function ProgressDashboard({ patient, prescriptions, completedLogs }) {
 }
 
 export default function PatientApp({ user }) {
-  const [patient, setPatient]           = useState(null);
+  const [patient, setPatient]             = useState(null);
   const [prescriptions, setPrescriptions] = useState([]);
   const [completedLogs, setCompletedLogs] = useState([]);
-  const [messages, setMessages]         = useState([]);
-  const [reply, setReply]               = useState("");
-  const [tab, setTab]                   = useState("exercises");
-  const [loading, setLoading]           = useState(true);
+  const [messages, setMessages]           = useState([]);
+  const [reply, setReply]                 = useState("");
+  const [tab, setTab]                     = useState("exercises");
+  const [loading, setLoading]             = useState(true);
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(()=>{ fetchAll(); },[]);
 
   const fetchAll = async () => {
-    const { data: p } = await supabase.from("patients").select("*").eq("user_id", user.id).single();
-    if (!p) { setLoading(false); return; }
+    const { data: p } = await supabase.from("patients").select("*").eq("user_id",user.id).single();
+    if(!p){ setLoading(false); return; }
     setPatient(p);
-    const [{ data: pres }, { data: logs }, { data: msgs }] = await Promise.all([
-      supabase.from("prescriptions").select("*").eq("patient_id", p.id).order("created_at", { ascending: false }),
-      supabase.from("exercise_logs").select("*").eq("patient_id", p.id),
-      supabase.from("messages").select("*").eq("patient_name", p.name).order("created_at", { ascending: true }),
+    const [{data:pres},{data:logs},{data:msgs}] = await Promise.all([
+      supabase.from("prescriptions").select("*").eq("patient_id",p.id).order("created_at",{ascending:false}),
+      supabase.from("exercise_logs").select("*").eq("patient_id",p.id),
+      supabase.from("messages").select("*").eq("patient_name",p.name).order("created_at",{ascending:true}),
     ]);
-    setPrescriptions(pres || []);
-    setCompletedLogs(logs || []);
-    setMessages(msgs || []);
+    setPrescriptions(pres||[]);
+    setCompletedLogs(logs||[]);
+    setMessages(msgs||[]);
     setLoading(false);
   };
 
   const markComplete = async (prescriptionId, exerciseId) => {
-    const done = completedLogs.find(l =>
-      l.prescription_id === prescriptionId && l.exercise_id === exerciseId &&
-      new Date(l.completed_at).toDateString() === new Date().toDateString()
-    );
-    if (done) await supabase.from("exercise_logs").delete().eq("id", done.id);
-    else await supabase.from("exercise_logs").insert({ patient_id: patient.id, prescription_id: prescriptionId, exercise_id: exerciseId });
+    const done = completedLogs.find(l=>l.prescription_id===prescriptionId&&l.exercise_id===exerciseId&&new Date(l.completed_at).toDateString()===new Date().toDateString());
+    if(done) await supabase.from("exercise_logs").delete().eq("id",done.id);
+    else await supabase.from("exercise_logs").insert({patient_id:patient.id,prescription_id:prescriptionId,exercise_id:exerciseId});
     fetchAll();
   };
 
   const sendMessage = async () => {
-    if (!reply.trim()) return;
-    await supabase.from("messages").insert({
-      therapist_id: patient.therapist_id, patient_name: patient.name, content: reply, sender: "patient", unread: true
-    });
+    if(!reply.trim()) return;
+    await supabase.from("messages").insert({therapist_id:patient.therapist_id,patient_name:patient.name,content:reply,sender:"patient",unread:true});
     setReply(""); fetchAll();
   };
 
-  if (loading) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-slate-400 text-sm">Cargando tu plan...</p>
+  if(loading) return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ width:44, height:44, border:`4px solid ${C.accent}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 1s linear infinite", margin:"0 auto 12px" }}/>
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <p style={{ color:C.muted, fontSize:14 }}>Cargando tu plan...</p>
       </div>
     </div>
   );
 
-  if (!patient) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-      <div className="text-center bg-white rounded-3xl p-8 shadow-sm border border-slate-100 max-w-xs w-full">
-        <p className="text-5xl mb-4">🔗</p>
-        <h2 className="text-xl font-bold text-slate-800 mb-2">Cuenta no vinculada</h2>
-        <p className="text-slate-500 text-sm mb-5">Pídele a tu fisioterapeuta el link de acceso.</p>
-        <button onClick={() => supabase.auth.signOut()} className="text-sm text-teal-600 font-medium hover:underline">Cerrar sesión</button>
+  if(!patient) return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:24, padding:32, textAlign:"center", maxWidth:320, width:"100%" }}>
+        <div style={{ fontSize:48, marginBottom:12 }}>🔗</div>
+        <h2 style={{ color:C.text, fontSize:20, fontWeight:700, marginBottom:8 }}>Cuenta no vinculada</h2>
+        <p style={{ color:C.muted, fontSize:14, marginBottom:20 }}>Pídele a tu fisioterapeuta el link de acceso.</p>
+        <button onClick={()=>supabase.auth.signOut()} style={{ color:C.accent, fontSize:14, background:"none", border:"none", cursor:"pointer" }}>Cerrar sesión</button>
       </div>
     </div>
   );
 
-  const latestPres      = prescriptions[0];
-  const totalEx         = latestPres?.exercises?.length || 0;
-  const todayDone       = completedLogs.filter(l =>
-    new Date(l.completed_at).toDateString() === new Date().toDateString()).length;
-  const todayPct        = totalEx > 0 ? Math.round((todayDone / totalEx) * 100) : 0;
-  const firstName       = patient.name.split(" ")[0];
+  const latestPres = prescriptions[0];
+  const totalEx    = latestPres?.exercises?.length||0;
+  const todayDone  = completedLogs.filter(l=>new Date(l.completed_at).toDateString()===new Date().toDateString()).length;
+  const pct        = totalEx>0?Math.round((todayDone/totalEx)*100):0;
+  const firstName  = patient.name.split(" ")[0];
 
-  const navItems = [
-    { id: "exercises", icon: "💪", label: "Plan" },
-    { id: "progress",  icon: "📊", label: "Progreso" },
-    { id: "messages",  icon: "💬", label: "Chat" },
-  ];
+  const navItems = [{id:"exercises",icon:"💪",label:"Plan"},{id:"progress",icon:"📊",label:"Progreso"},{id:"messages",icon:"💬",label:"Chat"}];
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
-      {/* Top bar */}
-      <div className="bg-white border-b border-slate-100 px-4 py-4 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-teal-600 rounded-xl flex items-center justify-center text-white font-bold text-sm">F</div>
+    <div style={{ minHeight:"100vh", background:C.bg, paddingBottom:80 }}>
+      {/* Header */}
+      <div style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ width:36, height:36, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, color:"#fff", fontSize:16 }}>F</div>
           <div>
-            <p className="font-bold text-slate-800 text-sm" style={{ fontFamily: "'Fraunces', serif" }}>FisioApp</p>
-            <p className="text-xs text-slate-400">Hola, {firstName} 👋</p>
+            <p style={{ fontFamily:"'Fraunces',serif", fontWeight:700, color:C.text, fontSize:15 }}>FisioApp</p>
+            <p style={{ color:C.muted, fontSize:11, marginTop:-2 }}>Hola, {firstName} 👋</p>
           </div>
         </div>
-        {totalEx > 0 && (
-          <div className="flex items-center gap-2 bg-teal-50 border border-teal-200 rounded-full px-3 py-1.5">
-            <div className="w-16 h-1.5 bg-teal-100 rounded-full overflow-hidden">
-              <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${todayPct}%` }} />
+        {totalEx>0 && (
+          <div style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(38,166,154,0.12)", border:"1px solid rgba(38,166,154,0.3)", borderRadius:20, padding:"6px 12px" }}>
+            <div style={{ width:52, height:4, background:C.border, borderRadius:4, overflow:"hidden" }}>
+              <div style={{ width:`${pct}%`, height:"100%", background:C.accent, borderRadius:4, transition:"width 0.5s" }}/>
             </div>
-            <span className="text-xs font-semibold text-teal-600">{todayPct}%</span>
+            <span style={{ fontSize:12, fontWeight:700, color:C.accent }}>{pct}%</span>
           </div>
         )}
       </div>
 
-      <main className="max-w-lg mx-auto px-4 pt-5">
+      <div style={{ maxWidth:600, margin:"0 auto", padding:"20px 16px" }}>
 
-        {/* EXERCISES TAB */}
-        {tab === "exercises" && (
-          <div>
-            {prescriptions.length === 0 ? (
-              <div className="text-center py-20">
-                <p className="text-6xl mb-4">🏋️</p>
-                <p className="font-semibold text-slate-700 text-lg">Sin plan asignado</p>
-                <p className="text-slate-400 text-sm mt-1">Tu fisioterapeuta aún no ha cargado tu rutina</p>
-              </div>
-            ) : (
-              prescriptions.map((pres, pi) => {
-                // Group exercises by block
-                const blocks = {};
-                (pres.exercises || []).forEach(ex => {
-                  const b = ex.block || "Sin bloque";
-                  if (!blocks[b]) blocks[b] = [];
-                  blocks[b].push(ex);
-                });
-                const blockOrder = ["Terapia","Calentamiento / Activación","Trabajo central","Sin bloque"];
-                const sortedBlocks = blockOrder.filter(b => blocks[b]);
-
-                return (
-                  <div key={pres.id} className="mb-8">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h2 className="font-bold text-slate-800 text-xl" style={{ fontFamily: "'Fraunces', serif" }}>
-                          {pi === 0 ? "Tu plan actual" : `Plan anterior ${pi}`}
-                        </h2>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          {new Date(pres.created_at).toLocaleDateString("es-CO", { day:"numeric", month:"long" })}
-                          {" · "}{pres.exercises?.length || 0} ejercicios
-                        </p>
+        {/* PLAN */}
+        {tab==="exercises" && (
+          prescriptions.length===0 ? (
+            <div style={{ textAlign:"center", padding:"60px 0" }}>
+              <div style={{ fontSize:56, marginBottom:12 }}>🏋️</div>
+              <p style={{ color:C.text, fontWeight:600, fontSize:18 }}>Sin plan asignado</p>
+              <p style={{ color:C.muted, fontSize:14, marginTop:6 }}>Tu fisioterapeuta pronto cargará tu rutina</p>
+            </div>
+          ) : prescriptions.map((pres,pi)=>{
+            const blocks = {};
+            (pres.exercises||[]).forEach(ex=>{ const b=ex.block||"Sin bloque"; if(!blocks[b]) blocks[b]=[]; blocks[b].push(ex); });
+            const order = ["Terapia","Calentamiento / Activación","Trabajo central","Sin bloque"];
+            const sorted = order.filter(b=>blocks[b]);
+            return (
+              <div key={pres.id} style={{ marginBottom:32 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+                  <div>
+                    <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:22, fontWeight:700, margin:0 }}>{pi===0?"Tu plan actual":`Plan anterior ${pi}`}</h2>
+                    <p style={{ color:C.muted, fontSize:12, marginTop:3 }}>{new Date(pres.created_at).toLocaleDateString("es-CO",{day:"numeric",month:"long"})} · {pres.exercises?.length||0} ejercicios</p>
+                  </div>
+                </div>
+                {pres.note && (
+                  <div style={{ background:"rgba(38,166,154,0.1)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:16, padding:14, marginBottom:16, display:"flex", gap:10 }}>
+                    <span style={{ fontSize:18 }}>📝</span>
+                    <div>
+                      <p style={{ color:C.accentL, fontSize:11, fontWeight:600, marginBottom:3 }}>Nota de tu fisio</p>
+                      <p style={{ color:C.text, fontSize:14 }}>{pres.note}</p>
+                    </div>
+                  </div>
+                )}
+                {sorted.map(blockName=>{
+                  const meta = BLOCK_META[blockName]||BLOCK_META["Sin bloque"];
+                  const exList = blocks[blockName];
+                  const blockDone = exList.filter(ex=>completedLogs.find(l=>l.prescription_id===pres.id&&l.exercise_id===ex.id&&new Date(l.completed_at).toDateString()===new Date().toDateString())).length;
+                  return (
+                    <div key={blockName} style={{ marginBottom:20 }}>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:meta.bg, border:`1px solid ${meta.color}33`, borderRadius:14, padding:"10px 14px", marginBottom:8 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <span style={{ fontSize:16 }}>{meta.icon}</span>
+                          <span style={{ color:meta.color, fontWeight:700, fontSize:13 }}>{blockName}</span>
+                        </div>
+                        <span style={{ color:meta.color, fontSize:12, fontWeight:600, background:"rgba(0,0,0,0.2)", padding:"2px 8px", borderRadius:10 }}>{blockDone}/{exList.length}</span>
+                      </div>
+                      <div style={{ display:"grid", gap:8, paddingLeft:8 }}>
+                        {exList.map(ex=>{
+                          const isDone = !!completedLogs.find(l=>l.prescription_id===pres.id&&l.exercise_id===ex.id&&new Date(l.completed_at).toDateString()===new Date().toDateString());
+                          return (
+                            <div key={ex.id} style={{ background: isDone?"rgba(52,211,153,0.08)":C.card, border:`1px solid ${isDone?"rgba(52,211,153,0.3)":C.border}`, borderRadius:18, padding:16, transition:"all 0.2s" }}>
+                              <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
+                                <button onClick={()=>pi===0&&markComplete(pres.id,ex.id)}
+                                  style={{ width:28, height:28, borderRadius:"50%", border:`2px solid ${isDone?"#34d399":C.dim}`, background:isDone?"#34d399":"transparent", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, marginTop:2, transition:"all 0.2s" }}>
+                                  {isDone && <svg width="12" height="10" viewBox="0 0 12 10" fill="none"><path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                </button>
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <div style={{ display:"flex", justifyContent:"space-between", gap:8 }}>
+                                    <p style={{ color:isDone?C.dim:C.text, fontWeight:600, fontSize:14, textDecoration:isDone?"line-through":"none" }}>{ex.name}</p>
+                                    <p style={{ color:C.accent, fontWeight:700, fontSize:13, flexShrink:0 }}>{ex.sets}×{ex.reps}</p>
+                                  </div>
+                                  {ex.description && <p style={{ color:C.muted, fontSize:12, marginTop:4, lineHeight:1.5 }}>{ex.description}</p>}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-
-                    {pres.note && (
-                      <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4 mb-4 flex gap-3">
-                        <span className="text-xl">📝</span>
-                        <div>
-                          <p className="text-xs text-teal-600 font-semibold mb-0.5">Nota de tu fisio</p>
-                          <p className="text-sm text-teal-800">{pres.note}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {sortedBlocks.map(blockName => {
-                      const style = getBlockStyle(blockName);
-                      const exList = blocks[blockName];
-                      const blockDone = exList.filter(ex =>
-                        completedLogs.find(l =>
-                          l.prescription_id === pres.id && l.exercise_id === ex.id &&
-                          new Date(l.completed_at).toDateString() === new Date().toDateString()
-                        )
-                      ).length;
-
-                      return (
-                        <div key={blockName} className="mb-5">
-                          {/* Block header */}
-                          <div className={`flex items-center justify-between rounded-2xl px-4 py-3 mb-2 ${style.bg} border ${style.border}`}>
-                            <div className="flex items-center gap-2">
-                              <span>{style.icon}</span>
-                              <span className={`font-semibold text-sm ${style.text}`}>{blockName}</span>
-                            </div>
-                            <span className={`text-xs font-semibold ${style.text} bg-white/70 px-2 py-0.5 rounded-full`}>
-                              {blockDone}/{exList.length}
-                            </span>
-                          </div>
-
-                          {/* Exercises */}
-                          <div className="grid gap-2 pl-2">
-                            {exList.map(ex => {
-                              const isDone = !!completedLogs.find(l =>
-                                l.prescription_id === pres.id && l.exercise_id === ex.id &&
-                                new Date(l.completed_at).toDateString() === new Date().toDateString()
-                              );
-                              return (
-                                <div key={ex.id}
-                                  className={`bg-white rounded-2xl border-2 p-4 transition-all duration-200 ${isDone ? "border-emerald-200 bg-emerald-50" : "border-slate-100"}`}>
-                                  <div className="flex items-start gap-3">
-                                    <button
-                                      onClick={() => pi === 0 && markComplete(pres.id, ex.id)}
-                                      className={`mt-0.5 w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center border-2 transition-all ${
-                                        isDone ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 hover:border-teal-400 hover:bg-teal-50"
-                                      }`}>
-                                      {isDone && <svg className="w-3.5 h-3.5" viewBox="0 0 12 10" fill="none"><path d="M1 5l3.5 3.5L11 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                                    </button>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-start justify-between gap-2">
-                                        <p className={`font-semibold text-sm leading-snug ${isDone ? "line-through text-slate-400" : "text-slate-800"}`}>
-                                          {ex.name}
-                                        </p>
-                                        <div className="text-right flex-shrink-0 ml-2">
-                                          <p className="text-xs font-bold text-teal-600">{ex.sets} × {ex.reps}</p>
-                                        </div>
-                                      </div>
-                                      {ex.description && (
-                                        <p className="text-xs text-slate-400 mt-1 leading-relaxed">{ex.description}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })
-            )}
-          </div>
+                  );
+                })}
+              </div>
+            );
+          })
         )}
 
-        {/* PROGRESS TAB */}
-        {tab === "progress" && (
-          <ProgressDashboard patient={patient} prescriptions={prescriptions} completedLogs={completedLogs} />
-        )}
+        {/* PROGRESS */}
+        {tab==="progress" && <ProgressDashboard patient={patient} prescriptions={prescriptions} completedLogs={completedLogs}/>}
 
-        {/* MESSAGES TAB */}
-        {tab === "messages" && (
-          <div className="flex flex-col" style={{ height: "calc(100vh - 200px)" }}>
-            <div className="flex-1 overflow-y-auto flex flex-col gap-3 pb-3">
-              {messages.length === 0 ? (
-                <div className="text-center py-16 text-slate-400">
-                  <p className="text-5xl mb-3">💬</p>
-                  <p className="font-medium">Escríbele a tu fisioterapeuta</p>
+        {/* MESSAGES */}
+        {tab==="messages" && (
+          <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 200px)" }}>
+            <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:10, paddingBottom:12 }}>
+              {messages.length===0 ? (
+                <div style={{ textAlign:"center", padding:"60px 0" }}>
+                  <div style={{ fontSize:48, marginBottom:10 }}>💬</div>
+                  <p style={{ color:C.muted }}>Escríbele a tu fisioterapeuta</p>
                 </div>
-              ) : messages.map(msg => (
-                <div key={msg.id} className={`flex ${msg.sender === "patient" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
-                    msg.sender === "patient"
-                      ? "bg-teal-600 text-white rounded-tr-sm"
-                      : "bg-white text-slate-800 border border-slate-100 rounded-tl-sm"
-                  }`}>
+              ) : messages.map(msg=>(
+                <div key={msg.id} style={{ display:"flex", justifyContent:msg.sender==="patient"?"flex-end":"flex-start" }}>
+                  <div style={{ maxWidth:"75%", background:msg.sender==="patient"?`linear-gradient(135deg,${C.accent},#1a7a75)`:C.card, border:msg.sender==="patient"?"none":`1px solid ${C.border}`, borderRadius:18, borderTopRightRadius:msg.sender==="patient"?4:18, borderTopLeftRadius:msg.sender==="patient"?18:4, padding:"10px 14px", fontSize:14, color:C.text }}>
                     {msg.content}
                   </div>
                 </div>
               ))}
             </div>
-            <div className="flex gap-2 pt-3 border-t border-slate-100">
-              <input value={reply} onChange={e => setReply(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && sendMessage()}
-                placeholder="Escribe un mensaje..."
-                className="flex-1 border border-slate-200 bg-white rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300" />
-              <button onClick={sendMessage}
-                className="bg-teal-600 hover:bg-teal-700 text-white w-12 h-12 rounded-2xl flex items-center justify-center transition-colors flex-shrink-0">
-                <svg className="w-5 h-5 rotate-90" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+            <div style={{ display:"flex", gap:8, paddingTop:12, borderTop:`1px solid ${C.border}` }}>
+              <input value={reply} onChange={e=>setReply(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendMessage()} placeholder="Escribe un mensaje..."
+                style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"12px 16px", fontSize:14, outline:"none" }}/>
+              <button onClick={sendMessage} style={{ width:46, height:46, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:14, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="white" style={{ transform:"rotate(90deg)" }}><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
               </button>
             </div>
           </div>
         )}
-      </main>
+      </div>
 
       {/* Bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-4 py-2 z-20 safe-area-inset-bottom">
-        <div className="max-w-lg mx-auto flex items-center justify-around">
-          {navItems.map(item => (
-            <button key={item.id} onClick={() => setTab(item.id)}
-              className={`flex flex-col items-center gap-1 px-6 py-2 rounded-2xl transition-all ${
-                tab === item.id ? "bg-teal-50" : ""
-              }`}>
-              <span className="text-xl">{item.icon}</span>
-              <span className={`text-xs font-medium ${tab === item.id ? "text-teal-600" : "text-slate-400"}`}>{item.label}</span>
+      <nav style={{ position:"fixed", bottom:0, left:0, right:0, background:C.surface, borderTop:`1px solid ${C.border}`, padding:"8px 16px 12px", zIndex:20 }}>
+        <div style={{ maxWidth:600, margin:"0 auto", display:"flex", justifyContent:"space-around" }}>
+          {navItems.map(item=>(
+            <button key={item.id} onClick={()=>setTab(item.id)}
+              style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, padding:"8px 20px", borderRadius:16, background:tab===item.id?"rgba(38,166,154,0.15)":"transparent", border:"none", cursor:"pointer", transition:"all 0.2s" }}>
+              <span style={{ fontSize:20 }}>{item.icon}</span>
+              <span style={{ fontSize:11, fontWeight:600, color:tab===item.id?C.accent:C.dim }}>{item.label}</span>
             </button>
           ))}
         </div>
