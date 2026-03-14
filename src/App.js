@@ -140,10 +140,26 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
   const [category,setCategory]     = useState("Todos");
   const [submitted,setSubmitted]   = useState(false);
   const [loading,setLoading]       = useState(false);
+  const [customExs,setCustomExs]   = useState([]);
 
-  const filtered = EXERCISES.filter(ex=>{
+  useEffect(()=>{
+    supabase.from("custom_exercises").select("*").eq("therapist_id",user.id).order("created_at",{ascending:false})
+      .then(({data})=>{
+        setCustomExs((data||[]).map(e=>({
+          id:"custom_"+e.id, dbId:e.id, name:e.name, description:e.description||"",
+          category:e.category||"Personalizado", defaultSets:e.default_sets||3,
+          defaultReps:e.default_reps||"10", videoUrl:e.video_url, isCustom:true,
+        })));
+      });
+  },[user.id]);
+
+  const allExercises = [...customExs, ...EXERCISES];
+  const allCategories = ["Todos","Mis ejercicios",...CATEGORIES];
+
+  const filtered = allExercises.filter(ex=>{
+    if(category==="Mis ejercicios") return ex.isCustom;
     const mc = category==="Todos"||ex.category===category;
-    const ms = ex.name.toLowerCase().includes(search.toLowerCase())||ex.description.toLowerCase().includes(search.toLowerCase());
+    const ms = ex.name.toLowerCase().includes(search.toLowerCase())||(ex.description||"").toLowerCase().includes(search.toLowerCase());
     return mc&&ms;
   });
 
@@ -229,10 +245,12 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
           </div>
 
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
-            {CATEGORIES.map(cat=>(
+            {allCategories.map(cat=>(
               <button key={cat} onClick={()=>setCategory(cat)}
-                style={{ fontSize:11, padding:"4px 10px", borderRadius:20, cursor:"pointer", fontWeight:500, border:"none", background:category===cat?C.accent:"rgba(255,255,255,0.06)", color:category===cat?"#fff":C.muted }}>
-                {cat}
+                style={{ fontSize:11, padding:"4px 10px", borderRadius:20, cursor:"pointer", fontWeight:500, border:"none",
+                  background:category===cat?(cat==="Mis ejercicios"?"linear-gradient(135deg,#fbbf24,#f59e0b)":C.accent):"rgba(255,255,255,0.06)",
+                  color:category===cat?"#fff":C.muted }}>
+                {cat==="Mis ejercicios"?"⭐ "+cat:cat}
               </button>
             ))}
           </div>
@@ -245,8 +263,12 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
                 <div key={ex.id} style={{ background: bOf?m.bg:C.card, border:`1px solid ${bOf?m.color+"44":C.border}`, borderRadius:16, padding:12 }}>
                   <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
                     <div style={{ flex:1, minWidth:0 }}>
-                      <p style={{ color:C.text, fontWeight:600, fontSize:13, margin:"0 0 3px" }}>{ex.name}</p>
-                      <p style={{ color:C.muted, fontSize:11, margin:0 }}>{ex.description?.slice(0,60)}...</p>
+                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                        <p style={{ color:C.text, fontWeight:600, fontSize:13, margin:0 }}>{ex.name}</p>
+                        {ex.isCustom && <span style={{ fontSize:9, background:"rgba(251,191,36,0.2)", color:"#fbbf24", padding:"1px 6px", borderRadius:8, fontWeight:700, flexShrink:0 }}>PROPIO</span>}
+                        {ex.videoUrl && <span style={{ fontSize:12 }} title="Tiene video">🎬</span>}
+                      </div>
+                      <p style={{ color:C.muted, fontSize:11, margin:"3px 0 0" }}>{(ex.description||"").slice(0,60)}{ex.description?.length>60?"...":""}</p>
                       <div style={{ display:"flex", gap:6, marginTop:6, flexWrap:"wrap" }}>
                         <span style={{ fontSize:10, background:"rgba(255,255,255,0.07)", color:C.muted, padding:"2px 8px", borderRadius:10 }}>{ex.category}</span>
                         {bOf && <span style={{ fontSize:10, color:m.color, padding:"2px 8px", borderRadius:10, background:m.bg }}>{m.icon} {bOf}</span>}
@@ -872,6 +894,214 @@ function InviteHandler({ token, user }) {
   );
 }
 
+
+// BIBLIOTECA VIEW
+function BibliotecaView({ user }) {
+  const [exercises, setExercises] = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [showForm, setShowForm]   = useState(false);
+  const [editEx, setEditEx]       = useState(null);
+  const [search, setSearch]       = useState("");
+  const [form, setForm]           = useState({ name:"", description:"", category:"Rehabilitacion", default_block:"Trabajo central", default_sets:3, default_reps:"10", video_url:"" });
+  const [saving, setSaving]       = useState(false);
+
+  const ALL_CATS = ["Rehabilitacion","Core / Abdomen","Gluteos / Cadera","Pierna / Rodilla","Hombro / Escapular","Pecho / Empuje","Espalda / Traccion","Biceps / Triceps","Tobillo / Pie","Cervical / Cuello","Muneca / Mano","Calentamiento","Full Body / Funcional","Otro"];
+
+  useEffect(()=>{ fetchExercises(); },[]);
+
+  const fetchExercises = async () => {
+    const {data} = await supabase.from("custom_exercises").select("*").eq("therapist_id",user.id).order("created_at",{ascending:false});
+    setExercises(data||[]); setLoading(false);
+  };
+
+  const openCreate = () => {
+    setEditEx(null);
+    setForm({ name:"", description:"", category:"Rehabilitacion", default_block:"Trabajo central", default_sets:3, default_reps:"10", video_url:"" });
+    setShowForm(true);
+  };
+
+  const openEdit = (ex) => {
+    setEditEx(ex);
+    setForm({ name:ex.name, description:ex.description||"", category:ex.category||"Rehabilitacion", default_block:ex.default_block||"Trabajo central", default_sets:ex.default_sets||3, default_reps:ex.default_reps||"10", video_url:ex.video_url||"" });
+    setShowForm(true);
+  };
+
+  const saveExercise = async () => {
+    if(!form.name.trim()) return;
+    setSaving(true);
+    const data = { therapist_id:user.id, name:form.name.trim(), description:form.description, category:form.category, default_block:form.default_block, default_sets:parseInt(form.default_sets)||3, default_reps:form.default_reps, video_url:form.video_url||null };
+    if(editEx) await supabase.from("custom_exercises").update(data).eq("id",editEx.id);
+    else await supabase.from("custom_exercises").insert(data);
+    setSaving(false); setShowForm(false); fetchExercises();
+  };
+
+  const deleteExercise = async (id) => {
+    if(!window.confirm("Eliminar este ejercicio?")) return;
+    await supabase.from("custom_exercises").delete().eq("id",id);
+    fetchExercises();
+  };
+
+  const filtered = exercises.filter(e=>e.name.toLowerCase().includes(search.toLowerCase())||(e.description||"").toLowerCase().includes(search.toLowerCase()));
+
+  const BLOCK_META = {
+    "Terapia":                { color:"#f87171", icon:"🩺" },
+    "Calentamiento / Activacion": { color:"#fbbf24", icon:"🔥" },
+    "Trabajo central":        { color:"#34d399", icon:"💪" },
+  };
+
+  return (
+    <div>
+      {showForm && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:50, display:"flex", alignItems:"center", justifyContent:"center", padding:16, overflowY:"auto" }}>
+          <div style={{ background:C.surface, border:"1px solid "+C.border, borderRadius:24, padding:24, width:"100%", maxWidth:520 }}>
+            <h3 style={{ fontFamily:"Fraunces,serif", color:C.text, fontSize:20, margin:"0 0 20px" }}>{editEx?"Editar ejercicio":"Nuevo ejercicio"}</h3>
+            <div style={{ display:"grid", gap:12 }}>
+              <div>
+                <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>Nombre *</label>
+                <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ej: Sentadilla isometrica" style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/>
+              </div>
+              <div>
+                <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>Descripcion / Instrucciones</label>
+                <textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Como se realiza el ejercicio..." rows={3}
+                  style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%",resize:"none",lineHeight:1.5}}/>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div>
+                  <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>Categoria</label>
+                  <select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}
+                    style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%"}}>
+                    {ALL_CATS.map(c=><option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>Bloque por defecto</label>
+                  <select value={form.default_block} onChange={e=>setForm({...form,default_block:e.target.value})}
+                    style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%"}}>
+                    <option>Trabajo central</option>
+                    <option>Terapia</option>
+                    <option>Calentamiento / Activacion</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                <div>
+                  <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>Series por defecto</label>
+                  <input type="number" value={form.default_sets} onChange={e=>setForm({...form,default_sets:e.target.value})} min="1"
+                    style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%",textAlign:"center",fontWeight:700}}/>
+                </div>
+                <div>
+                  <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>Reps / Tiempo por defecto</label>
+                  <input type="text" value={form.default_reps} onChange={e=>setForm({...form,default_reps:e.target.value})} placeholder="10 / 30seg"
+                    style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%",textAlign:"center",fontWeight:700}}/>
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>
+                  Link de video (YouTube, Drive, etc.) <span style={{color:C.dim}}>- opcional</span>
+                </label>
+                <input value={form.video_url} onChange={e=>setForm({...form,video_url:e.target.value})} placeholder="https://youtube.com/watch?v=..."
+                  style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/>
+                {form.video_url && (
+                  <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
+                    <a href={form.video_url} target="_blank" rel="noreferrer"
+                      style={{ fontSize:12, color:C.accent, display:"flex", alignItems:"center", gap:4, textDecoration:"none" }}>
+                      🎬 Ver video de referencia
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:10, marginTop:20 }}>
+              <button onClick={saveExercise} disabled={!form.name.trim()||saving}
+                style={{ flex:1, background:"linear-gradient(135deg,"+C.accent+",#1a7a75)", border:"none", borderRadius:14, padding:13, color:"#fff", fontWeight:700, cursor:"pointer", opacity:saving?0.7:1, fontSize:15 }}>
+                {saving?"Guardando...":(editEx?"Guardar cambios":"Crear ejercicio")}
+              </button>
+              <button onClick={()=>setShowForm(false)}
+                style={{ background:C.card, border:"1px solid "+C.border, borderRadius:14, padding:"13px 18px", color:C.muted, cursor:"pointer", fontSize:14 }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
+        <div>
+          <h2 style={{ fontFamily:"Fraunces,serif", color:C.text, fontSize:26, margin:0 }}>Mi Biblioteca</h2>
+          <p style={{ color:C.muted, fontSize:13, marginTop:4 }}>{exercises.length} ejercicios personalizados</p>
+        </div>
+        <button onClick={openCreate}
+          style={{ background:"linear-gradient(135deg,"+C.accent+",#1a7a75)", border:"none", borderRadius:14, padding:"10px 18px", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:14, boxShadow:"0 4px 16px rgba(38,166,154,0.25)" }}>
+          + Crear ejercicio
+        </button>
+      </div>
+
+      <div style={{ position:"relative", marginBottom:16 }}>
+        <svg style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar en mis ejercicios..."
+          style={{background:C.card,border:"1px solid "+C.border,borderRadius:14,padding:"10px 14px 10px 38px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/>
+      </div>
+
+      {loading ? <Spinner/> : filtered.length===0 ? (
+        <div style={{ background:C.card, border:"1px solid "+C.border, borderRadius:20, padding:60, textAlign:"center" }}>
+          <div style={{ fontSize:52, marginBottom:12 }}>🏋️</div>
+          <p style={{ color:C.text, fontWeight:600, fontSize:18, margin:"0 0 8px" }}>{exercises.length===0?"Crea tu primer ejercicio":"Sin resultados"}</p>
+          <p style={{ color:C.muted, fontSize:14 }}>{exercises.length===0?"Haz clic en Crear ejercicio para empezar":"Intenta con otro nombre"}</p>
+          {exercises.length===0 && (
+            <button onClick={openCreate} style={{ marginTop:20, background:"linear-gradient(135deg,"+C.accent+",#1a7a75)", border:"none", borderRadius:14, padding:"12px 24px", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:15 }}>
+              Crear primer ejercicio
+            </button>
+          )}
+        </div>
+      ) : (
+        <div style={{ display:"grid", gap:10 }}>
+          {filtered.map(ex=>{
+            const bm = BLOCK_META[ex.default_block]||{color:C.muted,icon:"📋"};
+            return (
+              <div key={ex.id} style={{ background:C.card, border:"1px solid "+C.border, borderRadius:20, padding:18, transition:"all 0.2s" }}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent+"55"}
+                onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+                <div style={{ display:"flex", gap:14, alignItems:"flex-start" }}>
+                  <div style={{ width:44, height:44, background:"rgba(38,166,154,0.12)", border:"1px solid rgba(38,166,154,0.2)", borderRadius:14, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>
+                    {bm.icon}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:4 }}>
+                      <p style={{ color:C.text, fontWeight:700, fontSize:16, margin:0 }}>{ex.name}</p>
+                      {ex.video_url && (
+                        <a href={ex.video_url} target="_blank" rel="noreferrer"
+                          style={{ fontSize:11, background:"rgba(251,191,36,0.15)", color:"#fbbf24", padding:"2px 8px", borderRadius:8, fontWeight:600, textDecoration:"none", display:"flex", alignItems:"center", gap:3 }}>
+                          🎬 Video
+                        </a>
+                      )}
+                    </div>
+                    {ex.description && <p style={{ color:C.muted, fontSize:13, margin:"0 0 8px", lineHeight:1.5 }}>{ex.description}</p>}
+                    <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+                      <span style={{ fontSize:11, background:"rgba(255,255,255,0.07)", color:C.muted, padding:"3px 10px", borderRadius:20 }}>{ex.category}</span>
+                      <span style={{ fontSize:11, color:bm.color, background:"rgba(0,0,0,0.2)", padding:"3px 10px", borderRadius:20 }}>{bm.icon} {ex.default_block}</span>
+                      <span style={{ fontSize:11, color:C.accent, fontWeight:600 }}>{ex.default_sets} series × {ex.default_reps}</span>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+                    <button onClick={()=>openEdit(ex)}
+                      style={{ background:"rgba(38,166,154,0.12)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:12, padding:"7px 12px", color:C.accent, fontWeight:600, fontSize:13, cursor:"pointer" }}>
+                      ✏️
+                    </button>
+                    <button onClick={()=>deleteExercise(ex.id)}
+                      style={{ background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:12, padding:"7px 10px", color:C.danger, fontSize:13, cursor:"pointer" }}>
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── THERAPIST APP ─────────────────────────────────────────────────────────────
 function TherapistApp({ user }) {
   const [tab,setTab]                         = useState("patients");
@@ -882,7 +1112,7 @@ function TherapistApp({ user }) {
   const handlePrescribe   = p=>{ setPrescribePatient(p); setProfilePatient(null); };
   const handleBack        = ()=>{ setPrescribePatient(null); setProfilePatient(null); };
 
-  const navItems=[{id:"patients",icon:"👤",label:"Pacientes"},{id:"agenda",icon:"📅",label:"Agenda"},{id:"messages",icon:"💬",label:"Mensajes"}];
+  const navItems=[{id:"patients",icon:"👤",label:"Pacientes"},{id:"biblioteca",icon:"⭐",label:"Biblioteca"},{id:"agenda",icon:"📅",label:"Agenda"},{id:"messages",icon:"💬",label:"Mensajes"}];
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg }}>
@@ -915,6 +1145,7 @@ function TherapistApp({ user }) {
         {tab==="patients"&&!prescribePatient&&!profilePatient && <PatientsView user={user} onPrescribe={handlePrescribe} onViewProfile={handleViewProfile}/>}
         {tab==="patients"&&prescribePatient && <PrescribeView user={user} patient={prescribePatient} onBack={handleBack}/>}
         {tab==="patients"&&profilePatient && <PatientProfile patient={profilePatient} user={user} onBack={handleBack} onPrescribe={handlePrescribe}/>}
+        {tab==="biblioteca" && <BibliotecaView user={user}/>}
         {tab==="agenda" && <AgendaView user={user}/>}
         {tab==="messages" && <MessagesView user={user}/>}
       </main>
