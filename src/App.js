@@ -37,6 +37,17 @@ function Avatar({ name, size=40 }) {
   );
 }
 
+
+
+// ─── PAYMENT INFO ─────────────────────────────────────────────────────────────
+const PAYMENT_INFO = {
+  bank:   "Bancolombia",
+  type:   "Cuenta de Ahorros",
+  number: "316 50472414",
+  holder: "Manuel Celis",
+  nequi:  "",
+  alias:  "",
+};
 function Spinner() {
   return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:48 }}>
@@ -404,9 +415,11 @@ function PatientProfile({ patient, user, onBack, onPrescribe }) {
             <p style={{ color:C.muted, fontSize:14, margin:"0 0 6px" }}>{patient.condition||"Sin diagnóstico"}</p>
             {patient.age && <p style={{ color:C.dim, fontSize:12, margin:0 }}>{patient.age} años{patient.email?` · ${patient.email}`:""}</p>}
             <div style={{ marginTop:10 }}>
-              {patient.user_id
+              {patient.user_id && patient.invite_status==="aprobado"
                 ? <span style={{ background:"rgba(52,211,153,0.15)", border:"1px solid rgba(52,211,153,0.3)", color:"#34d399", fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>✓ App activa</span>
-                : <span style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.3)", color:"#fbbf24", fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>Sin acceso a la app</span>
+                : patient.user_id && patient.invite_status==="pendiente"
+                ? <span style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.3)", color:"#fbbf24", fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>⏳ Aprobación pendiente</span>
+                : <span style={{ background:"rgba(136,146,164,0.1)", border:"1px solid rgba(136,146,164,0.2)", color:C.muted, fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>Sin acceso</span>
               }
             </div>
           </div>
@@ -569,6 +582,11 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
     setPatients(data||[]); setLoading(false);
   };
 
+  const approvePatient = async (id) => {
+    await supabase.from("patients").update({invite_status:"aprobado"}).eq("id",id);
+    fetchPatients();
+  };
+
   const addPatient = async () => {
     if(!form.name) return;
     const token = crypto.randomUUID();
@@ -636,11 +654,18 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                     <span style={{ color:C.text, fontWeight:600, fontSize:15 }}>{p.name}</span>
-                    {p.user_id && <span style={{ fontSize:10, background:"rgba(52,211,153,0.15)", color:"#34d399", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>✓ Activo</span>}
+                    {p.user_id && p.invite_status==="aprobado" && <span style={{ fontSize:10, background:"rgba(52,211,153,0.15)", color:"#34d399", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>✓ Activo</span>}
+                    {p.user_id && p.invite_status==="pendiente" && <span style={{ fontSize:10, background:"rgba(251,191,36,0.15)", color:"#fbbf24", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>⏳ Pendiente</span>}
                   </div>
                   <p style={{ color:C.muted, fontSize:13, marginTop:3 }}>{p.condition||"Sin diagnóstico"}{p.age?` · ${p.age} años`:""}</p>
                 </div>
                 <div style={{ display:"flex", gap:8 }} onClick={e=>e.stopPropagation()}>
+                  {p.user_id && p.invite_status==="pendiente" && (
+                    <button onClick={()=>approvePatient(p.id)}
+                      style={{ background:"rgba(251,191,36,0.15)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:12, padding:"7px 12px", color:"#fbbf24", fontWeight:700, fontSize:13, cursor:"pointer" }}>
+                      Aprobar
+                    </button>
+                  )}
                   <button onClick={()=>onPrescribe(p)} style={{ background:"rgba(38,166,154,0.15)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:12, padding:"7px 12px", color:C.accent, fontWeight:600, fontSize:13, cursor:"pointer" }}>💪</button>
                   {p.invite_token && <button onClick={()=>setShowInvite(p)} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"7px 10px", color:C.muted, fontSize:13, cursor:"pointer" }}>🔗</button>}
                 </div>
@@ -877,17 +902,19 @@ function MessagesView({ user }) {
 function InviteHandler({ token, user }) {
   const [status,setStatus] = useState("linking");
   useEffect(()=>{
-    supabase.from("patients").update({user_id:user.id}).eq("invite_token",token).then(({error})=>{
-      window.history.replaceState({},"",window.location.pathname);
-      setStatus(error?"error":"success");
-      if(!error) setTimeout(()=>window.location.reload(),1500);
-    });
+    supabase.from("patients")
+      .update({user_id:user.id, invite_status:"pendiente"})
+      .eq("invite_token",token)
+      .then(({error})=>{
+        window.history.replaceState({},"",window.location.pathname);
+        setStatus(error?"error":"success");
+      });
   },[]);
   return (
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:24, padding:32, textAlign:"center", maxWidth:320, width:"100%" }}>
         {status==="linking" && <><div style={{ width:44, height:44, border:`4px solid ${C.accent}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 1s linear infinite", margin:"0 auto 16px" }}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style><p style={{ color:C.muted }}>Vinculando tu cuenta...</p></>}
-        {status==="success" && <><div style={{ fontSize:48, marginBottom:12 }}>✅</div><p style={{ color:"#34d399", fontWeight:600, fontSize:18 }}>¡Listo!</p><p style={{ color:C.muted, fontSize:13, marginTop:6 }}>Cargando tu plan...</p></>}
+        {status==="success" && <><div style={{ fontSize:48, marginBottom:12 }}>⏳</div><p style={{ color:"#fbbf24", fontWeight:600, fontSize:18 }}>¡Solicitud enviada!</p><p style={{ color:C.muted, fontSize:13, marginTop:6 }}>Tu fisioterapeuta debe aprobar tu acceso. Te avisará cuando esté listo.</p></>}
         {status==="error" && <><div style={{ fontSize:48, marginBottom:12 }}>⚠️</div><p style={{ color:C.danger, fontWeight:600 }}>Error al vincular</p><p style={{ color:C.muted, fontSize:13 }}>Contacta a tu fisioterapeuta</p></>}
       </div>
     </div>
@@ -1102,52 +1129,315 @@ function BibliotecaView({ user }) {
   );
 }
 
-// ─── THERAPIST APP ─────────────────────────────────────────────────────────────
-function TherapistApp({ user }) {
-  const [tab,setTab]                         = useState("patients");
-  const [prescribePatient,setPrescribePatient]= useState(null);
-  const [profilePatient,setProfilePatient]   = useState(null);
+// ─── DASHBOARD VIEW ───────────────────────────────────────────────────────────
+function DashboardView({ user }) {
+  const [stats,setStats]    = useState({patients:0,active:0,pending:0,appointments:0,messages:0});
+  const [recent,setRecent]  = useState([]);
+  const [apts,setApts]      = useState([]);
+  const [loading,setLoading]= useState(true);
 
-  const handleViewProfile = p=>{ setProfilePatient(p); setPrescribePatient(null); };
-  const handlePrescribe   = p=>{ setPrescribePatient(p); setProfilePatient(null); };
-  const handleBack        = ()=>{ setPrescribePatient(null); setProfilePatient(null); };
+  useEffect(()=>{
+    const fetch = async () => {
+      const [{data:patients},{data:appointments},{data:messages}] = await Promise.all([
+        supabase.from("patients").select("*"),
+        supabase.from("appointments").select("*").gte("date", new Date().toISOString().split("T")[0]).order("date").limit(5),
+        supabase.from("messages").select("*").eq("unread",true),
+      ]);
+      const p=patients||[];
+      setStats({ patients:p.length, active:p.filter(x=>x.invite_status==="aprobado").length, pending:p.filter(x=>x.invite_status==="pendiente").length, appointments:(appointments||[]).length, messages:(messages||[]).length });
+      setRecent(p.slice(0,5));
+      setApts(appointments||[]);
+      setLoading(false);
+    };
+    fetch();
+  },[]);
 
-  const navItems=[{id:"patients",icon:"👤",label:"Pacientes"},{id:"biblioteca",icon:"⭐",label:"Biblioteca"},{id:"agenda",icon:"📅",label:"Agenda"},{id:"messages",icon:"💬",label:"Mensajes"}];
+  const today=new Date().toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long"});
+
+  const statCards=[
+    {label:"Pacientes", value:stats.patients, sub:`${stats.active} activos`, color:C.accent},
+    {label:"Pendientes", value:stats.pending, sub:"por aprobar", color:C.warn},
+    {label:"Citas", value:stats.appointments, sub:"próximas", color:"#7e57c2"},
+    {label:"Mensajes", value:stats.messages, sub:"sin leer", color:"#42a5f5"},
+  ];
+
+  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:80}}><div style={{width:32,height:32,border:`3px solid ${C.accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div>;
 
   return (
-    <div style={{ minHeight:"100vh", background:C.bg }}>
-      <header style={{ background:C.surface, borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, zIndex:10 }}>
-        <div style={{ maxWidth:1100, margin:"0 auto", padding:"14px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            <div style={{ width:36, height:36, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, color:"#fff", boxShadow:`0 0 20px rgba(38,166,154,0.2)` }}>F</div>
-            <span style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:18, fontWeight:700 }}>FisioApp</span>
-          </div>
-          <button onClick={()=>supabase.auth.signOut()} style={{ color:C.muted, background:"none", border:"none", cursor:"pointer", fontSize:13, fontWeight:500 }}>Salir</button>
-        </div>
-      </header>
+    <div>
+      <div style={{marginBottom:28}}>
+        <p style={{color:C.muted,fontSize:13,marginBottom:4,textTransform:"capitalize"}}>{today}</p>
+        <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:28,margin:0}}>Panel de control</h2>
+      </div>
 
-      <div style={{ maxWidth:1100, margin:"0 auto", padding:"20px 20px 0" }}>
-        <div style={{ display:"flex", gap:4, background:C.surface, border:`1px solid ${C.border}`, borderRadius:18, padding:4, marginBottom:24 }}>
-          {navItems.map(item=>(
-            <button key={item.id} onClick={()=>{ setTab(item.id); handleBack(); }}
-              style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"10px", borderRadius:14, border:"none", cursor:"pointer", fontWeight:600, fontSize:14, transition:"all 0.2s",
-                background: tab===item.id?C.accent:"transparent",
-                color: tab===item.id?"#fff":C.muted
-              }}>
-              {item.icon} <span style={{ display:"none" }} className="sm:inline">{item.label}</span>
-              <span>{item.label}</span>
-            </button>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:14,marginBottom:24}}>
+        {statCards.map((s,i)=>(
+          <div key={i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:20,position:"relative",overflow:"hidden"}}>
+            <div style={{position:"absolute",top:-16,right:-16,width:70,height:70,borderRadius:"50%",background:`${s.color}18`}}/>
+            <p style={{color:s.color,fontSize:36,fontWeight:700,margin:0,lineHeight:1}}>{s.value}</p>
+            <p style={{color:C.text,fontSize:14,fontWeight:600,margin:"6px 0 2px"}}>{s.label}</p>
+            <p style={{color:C.muted,fontSize:12,margin:0}}>{s.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:20}}>
+          <h3 style={{color:C.text,fontSize:15,fontWeight:600,margin:"0 0 16px",display:"flex",alignItems:"center",gap:8}}>{Icon.agenda} Próximas citas</h3>
+          {apts.length===0?<p style={{color:C.muted,fontSize:14,textAlign:"center",padding:"16px 0"}}>Sin citas programadas</p>:apts.map(a=>(
+            <div key={a.id} style={{display:"flex",gap:12,alignItems:"center",marginBottom:12}}>
+              <div style={{background:`rgba(38,166,154,0.1)`,border:`1px solid rgba(38,166,154,0.2)`,borderRadius:10,padding:"5px 10px",textAlign:"center",minWidth:50}}>
+                <p style={{color:C.accent,fontWeight:700,fontSize:14,margin:0}}>{a.time||"--"}</p>
+                <p style={{color:C.muted,fontSize:10,margin:0}}>{a.date?.slice(5)}</p>
+              </div>
+              <div>
+                <p style={{color:C.text,fontWeight:600,fontSize:13,margin:0}}>{a.patient_name}</p>
+                <p style={{color:C.muted,fontSize:12,margin:"2px 0 0"}}>{a.type}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:20}}>
+          <h3 style={{color:C.text,fontSize:15,fontWeight:600,margin:"0 0 16px",display:"flex",alignItems:"center",gap:8}}>{Icon.patients} Pacientes recientes</h3>
+          {recent.map(p=>(
+            <div key={p.id} style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
+              <div style={{width:36,height:36,borderRadius:10,background:C.accentG,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:12,flexShrink:0}}>{(p.name||"?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{color:C.text,fontWeight:600,fontSize:13,margin:0}}>{p.name}</p>
+                <p style={{color:C.muted,fontSize:11,margin:"2px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.condition||"Sin diagnóstico"}</p>
+              </div>
+              {p.invite_status==="pendiente"&&<span style={{fontSize:10,background:"rgba(255,167,38,0.15)",color:C.warn,padding:"2px 7px",borderRadius:8,fontWeight:600,flexShrink:0}}>Pendiente</span>}
+              {p.invite_status==="aprobado"&&<span style={{fontSize:10,background:"rgba(102,187,106,0.15)",color:"#66bb6a",padding:"2px 7px",borderRadius:8,fontWeight:600,flexShrink:0}}>Activo</span>}
+            </div>
           ))}
         </div>
       </div>
+    </div>
+  );
+}
 
-      <main style={{ maxWidth:1100, margin:"0 auto", padding:"0 20px 40px" }}>
-        {tab==="patients"&&!prescribePatient&&!profilePatient && <PatientsView user={user} onPrescribe={handlePrescribe} onViewProfile={handleViewProfile}/>}
-        {tab==="patients"&&prescribePatient && <PrescribeView user={user} patient={prescribePatient} onBack={handleBack}/>}
-        {tab==="patients"&&profilePatient && <PatientProfile patient={profilePatient} user={user} onBack={handleBack} onPrescribe={handlePrescribe}/>}
-        {tab==="biblioteca" && <BibliotecaView user={user}/>}
-        {tab==="agenda" && <AgendaView user={user}/>}
-        {tab==="messages" && <MessagesView user={user}/>}
+// ─── PAYMENTS VIEW ─────────────────────────────────────────────────────────────
+function PaymentsView({ user }) {
+  const [payments,setPayments]  = useState([]);
+  const [patients,setPatients]  = useState([]);
+  const [loading,setLoading]    = useState(true);
+  const [showForm,setShowForm]  = useState(false);
+  const [copiedField,setCopied] = useState("");
+  const [form,setForm] = useState({patient_id:"",amount:"",concept:"Sesión de fisioterapia",due_date:""});
+
+  useEffect(()=>{
+    Promise.all([
+      supabase.from("payments").select("*,patients(name)").order("created_at",{ascending:false}),
+      supabase.from("patients").select("id,name"),
+    ]).then(([{data:pay},{data:pat}])=>{ setPayments(pay||[]); setPatients(pat||[]); setLoading(false); });
+  },[]);
+
+  const createPayment = async ()=>{
+    if(!form.patient_id||!form.amount) return;
+    await supabase.from("payments").insert({...form,therapist_id:user.id,amount:parseFloat(form.amount),status:"pendiente"});
+    setForm({patient_id:"",amount:"",concept:"Sesión de fisioterapia",due_date:""}); setShowForm(false);
+    const {data}=await supabase.from("payments").select("*,patients(name)").order("created_at",{ascending:false});
+    setPayments(data||[]);
+  };
+
+  const markPaid=async(id)=>{ await supabase.from("payments").update({status:"pagado"}).eq("id",id); setPayments(prev=>prev.map(p=>p.id===id?{...p,status:"pagado"}:p)); };
+  const copyField=(val,field)=>{ navigator.clipboard.writeText(val); setCopied(field); setTimeout(()=>setCopied(""),2000); };
+
+  const totalPaid=payments.filter(p=>p.status==="pagado").reduce((s,p)=>s+p.amount,0);
+  const totalPending=payments.filter(p=>p.status==="pendiente").reduce((s,p)=>s+p.amount,0);
+  const fmt=n=>new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",minimumFractionDigits:0}).format(n);
+
+  const inp2=(extra={})=>({background:C.card,border:`1px solid ${C.border}`,borderRadius:11,padding:"10px 13px",fontSize:14,color:C.text,outline:"none",width:"100%",...extra});
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
+        <div>
+          <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:28,margin:0}}>Pagos</h2>
+          <p style={{color:C.muted,fontSize:13,marginTop:4}}>Gestiona cobros a tus pacientes</p>
+        </div>
+        <button onClick={()=>setShowForm(!showForm)} style={{background:C.accentG,border:"none",borderRadius:12,padding:"10px 18px",color:"#fff",fontWeight:700,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",gap:6,boxShadow:`0 4px 16px rgba(38,166,154,0.25)`}}>
+          {Icon.plus} Nuevo cobro
+        </button>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}>
+        <div style={{background:C.card,border:"1px solid rgba(102,187,106,0.25)",borderRadius:16,padding:18}}>
+          <p style={{color:"#66bb6a",fontSize:11,fontWeight:700,margin:"0 0 5px",textTransform:"uppercase",letterSpacing:1}}>Recibido</p>
+          <p style={{color:C.text,fontSize:24,fontWeight:700,margin:0}}>{fmt(totalPaid)}</p>
+        </div>
+        <div style={{background:C.card,border:"1px solid rgba(255,167,38,0.25)",borderRadius:16,padding:18}}>
+          <p style={{color:C.warn,fontSize:11,fontWeight:700,margin:"0 0 5px",textTransform:"uppercase",letterSpacing:1}}>Por cobrar</p>
+          <p style={{color:C.text,fontSize:24,fontWeight:700,margin:0}}>{fmt(totalPending)}</p>
+        </div>
+      </div>
+
+      {/* Bank info */}
+      <div style={{background:"linear-gradient(135deg,#0d2a28,#0f1e2e)",border:"1px solid rgba(38,166,154,0.25)",borderRadius:20,padding:20,marginBottom:20}}>
+        <p style={{color:C.accentL,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,margin:"0 0 14px"}}>Datos para transferencia</p>
+        <div style={{display:"grid",gap:8}}>
+          {[
+            {label:"Banco",val:PAYMENT_INFO.bank},
+            {label:"Tipo de cuenta",val:PAYMENT_INFO.type},
+            {label:"Número de cuenta",val:PAYMENT_INFO.number,copy:true},
+            {label:"Titular",val:PAYMENT_INFO.holder},
+            ...(PAYMENT_INFO.nequi?[{label:"Nequi",val:PAYMENT_INFO.nequi,copy:true}]:[]),
+            ...(PAYMENT_INFO.alias?[{label:"Alias Bancolombia",val:PAYMENT_INFO.alias,copy:true}]:[]),
+          ].map((f,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(0,0,0,0.2)",borderRadius:10,padding:"8px 13px"}}>
+              <div>
+                <p style={{color:C.muted,fontSize:11,margin:0}}>{f.label}</p>
+                <p style={{color:C.text,fontWeight:600,fontSize:14,margin:"2px 0 0"}}>{f.val}</p>
+              </div>
+              {f.copy&&<button onClick={()=>copyField(f.val,f.label)} style={{background:copiedField===f.label?"rgba(102,187,106,0.2)":"rgba(38,166,154,0.12)",border:`1px solid ${copiedField===f.label?"rgba(102,187,106,0.4)":"rgba(38,166,154,0.25)"}`,borderRadius:8,padding:"5px 10px",color:copiedField===f.label?"#66bb6a":C.accent,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                {Icon.copy}{copiedField===f.label?"¡Copiado!":"Copiar"}
+              </button>}
+            </div>
+          ))}
+        </div>
+        <div style={{marginTop:14,background:"rgba(0,0,0,0.2)",borderRadius:10,padding:14,display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:64,height:64,background:"white",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:10,color:"#333",textAlign:"center",lineHeight:1.3}}>
+            <div>QR<br/>aquí</div>
+          </div>
+          <div>
+            <p style={{color:C.accentL,fontWeight:600,fontSize:13,margin:"0 0 3px"}}>QR para pago (Nequi / Bancolombia)</p>
+            <p style={{color:C.muted,fontSize:12,margin:0}}>Reemplaza el recuadro blanco por tu imagen QR real. Edita el código en <code style={{color:C.accentL}}>PAYMENT_INFO</code> con tus datos reales.</p>
+          </div>
+        </div>
+      </div>
+
+      {showForm&&(
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:20,marginBottom:16}}>
+          <h3 style={{color:C.text,fontSize:15,fontWeight:600,margin:"0 0 14px"}}>Nuevo cobro</h3>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div style={{gridColumn:"1/-1"}}>
+              <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Paciente *</label>
+              <select value={form.patient_id} onChange={e=>setForm({...form,patient_id:e.target.value})} style={inp2()}>
+                <option value="">Selecciona paciente...</option>
+                {patients.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Monto (COP) *</label>
+              <input type="number" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} placeholder="80000" style={inp2()}/>
+            </div>
+            <div>
+              <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Vence</label>
+              <input type="date" value={form.due_date} onChange={e=>setForm({...form,due_date:e.target.value})} style={inp2()}/>
+            </div>
+            <div style={{gridColumn:"1/-1"}}>
+              <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Concepto</label>
+              <input value={form.concept} onChange={e=>setForm({...form,concept:e.target.value})} style={inp2()}/>
+            </div>
+            <div style={{gridColumn:"1/-1",display:"flex",gap:10}}>
+              <button onClick={createPayment} style={{flex:1,background:C.accentG,border:"none",borderRadius:11,padding:11,color:"#fff",fontWeight:700,cursor:"pointer"}}>Crear cobro</button>
+              <button onClick={()=>setShowForm(false)} style={{background:"#1a2035",border:`1px solid ${C.border}`,borderRadius:11,padding:"11px 16px",color:C.muted,cursor:"pointer"}}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loading?<div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:40}}><div style={{width:28,height:28,border:`3px solid ${C.accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/></div>:payments.length===0?(
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:40,textAlign:"center"}}>
+          <p style={{color:C.muted}}>Sin cobros registrados</p>
+        </div>
+      ):(
+        <div style={{display:"grid",gap:8}}>
+          {payments.map(p=>(
+            <div key={p.id} style={{background:C.card,border:`1px solid ${p.status==="pagado"?"rgba(102,187,106,0.3)":"rgba(255,167,38,0.25)"}`,borderRadius:14,padding:16}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                    <p style={{color:C.text,fontWeight:600,fontSize:15,margin:0}}>{p.patients?.name||"Paciente"}</p>
+                    <span style={{fontSize:10,padding:"2px 8px",borderRadius:10,fontWeight:600,background:p.status==="pagado"?"rgba(102,187,106,0.15)":"rgba(255,167,38,0.12)",color:p.status==="pagado"?"#66bb6a":C.warn}}>{p.status==="pagado"?"Pagado":"Pendiente"}</span>
+                  </div>
+                  <p style={{color:C.muted,fontSize:12,margin:0}}>{p.concept}{p.due_date?` · Vence ${p.due_date}`:""}</p>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <p style={{color:C.accent,fontWeight:700,fontSize:18,margin:0}}>{fmt(p.amount)}</p>
+                  {p.status==="pendiente"&&<button onClick={()=>markPaid(p.id)} style={{marginTop:5,background:"rgba(102,187,106,0.12)",border:"1px solid rgba(102,187,106,0.3)",borderRadius:8,padding:"4px 10px",color:"#66bb6a",fontWeight:600,fontSize:12,cursor:"pointer"}}>Marcar pagado</button>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── THERAPIST APP — SIDEBAR ────────────────────────────────────────────────────
+function TherapistApp({ user }) {
+  const [tab,setTab]                         = useState("dashboard");
+  const [prescribePatient,setPrescribePatient]= useState(null);
+  const [profilePatient,setProfilePatient]   = useState(null);
+  const [collapsed,setCollapsed]             = useState(false);
+
+  const handleViewProfile = p=>{ setProfilePatient(p); setPrescribePatient(null); };
+  const handlePrescribe   = p=>{ setPrescribePatient(p); setProfilePatient(null); setTab("patients"); };
+  const handleBack        = ()=>{ setPrescribePatient(null); setProfilePatient(null); };
+
+  const navItems=[
+    {id:"dashboard", label:"Dashboard",  icon:Icon.dashboard},
+    {id:"patients",  label:"Pacientes",  icon:Icon.patients},
+    {id:"agenda",    label:"Agenda",     icon:Icon.agenda},
+    {id:"messages",  label:"Mensajes",   icon:Icon.messages},
+    {id:"payments",  label:"Pagos",      icon:Icon.payments},
+  ];
+
+  const sideW = collapsed ? 64 : 220;
+
+  return (
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex"}}>
+      {/* Sidebar */}
+      <aside style={{width:sideW,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:20,transition:"width 0.25s ease",overflow:"hidden"}}>
+        <div style={{padding:"18px 14px 14px",display:"flex",alignItems:"center",gap:12,borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
+          <div style={{width:34,height:34,background:C.accentG,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:`0 0 18px rgba(38,166,154,0.3)`}}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </div>
+          {!collapsed&&<span style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:16,fontWeight:700,whiteSpace:"nowrap"}}>FisioApp</span>}
+        </div>
+
+        <nav style={{flex:1,padding:"10px 8px",display:"flex",flexDirection:"column",gap:2,overflowY:"auto"}}>
+          {navItems.map(item=>{
+            const active=tab===item.id&&!prescribePatient&&!profilePatient;
+            return (
+              <button key={item.id} onClick={()=>{setTab(item.id);handleBack();}}
+                style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:11,border:"none",cursor:"pointer",width:"100%",textAlign:"left",transition:"all 0.15s",
+                  background:active?"rgba(38,166,154,0.14)":"transparent",
+                  color:active?C.accent:C.muted,
+                  borderLeft:active?`2px solid ${C.accent}`:"2px solid transparent",
+                }}>
+                <span style={{flexShrink:0}}>{item.icon}</span>
+                {!collapsed&&<span style={{fontSize:14,fontWeight:active?600:400,whiteSpace:"nowrap"}}>{item.label}</span>}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div style={{padding:"10px 8px",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:2}}>
+          <button onClick={()=>setCollapsed(!collapsed)}
+            style={{display:"flex",alignItems:"center",gap:12,padding:"9px 12px",borderRadius:11,border:"none",cursor:"pointer",background:"transparent",color:C.dim,width:"100%"}}>
+            <span style={{transform:collapsed?"rotate(180deg)":"none",transition:"transform 0.25s",flexShrink:0}}>{Icon.collapse}</span>
+            {!collapsed&&<span style={{fontSize:13,whiteSpace:"nowrap"}}>Contraer</span>}
+          </button>
+          <button onClick={()=>supabase.auth.signOut()}
+            style={{display:"flex",alignItems:"center",gap:12,padding:"9px 12px",borderRadius:11,border:"none",cursor:"pointer",background:"transparent",color:C.dim,width:"100%"}}>
+            {Icon.logout}
+            {!collapsed&&<span style={{fontSize:13,whiteSpace:"nowrap"}}>Cerrar sesión</span>}
+          </button>
+        </div>
+      </aside>
+
+      <main style={{flex:1,marginLeft:sideW,transition:"margin-left 0.25s ease",padding:"32px 28px",minHeight:"100vh",overflowX:"hidden"}}>
+        {tab==="dashboard"&&<DashboardView user={user}/>}
+        {tab==="patients"&&!prescribePatient&&!profilePatient&&<PatientsView user={user} onPrescribe={handlePrescribe} onViewProfile={handleViewProfile}/>}
+        {tab==="patients"&&prescribePatient&&<PrescribeView user={user} patient={prescribePatient} onBack={handleBack}/>}
+        {tab==="patients"&&profilePatient&&<PatientProfile patient={profilePatient} user={user} onBack={handleBack} onPrescribe={handlePrescribe}/>}
+        {tab==="agenda"&&<AgendaView user={user}/>}
+        {tab==="messages"&&<MessagesView user={user}/>}
+        {tab==="payments"&&<PaymentsView user={user}/>}
       </main>
     </div>
   );
@@ -1171,7 +1461,8 @@ export default function App() {
 
   useEffect(()=>{
     if(!user){ setRole(null); return; }
-    supabase.from("patients").select("id").eq("user_id",user.id).maybeSingle().then(({data})=>setRole(data?"patient":"therapist"));
+    supabase.from("patients").select("id,invite_status").eq("user_id",user.id).maybeSingle()
+      .then(({data})=>setRole(data&&data.invite_status==="aprobado"?"patient":"therapist"));
   },[user]);
 
   if(user===undefined) return (
