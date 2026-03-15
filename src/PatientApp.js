@@ -15,10 +15,10 @@ const C = {
 };
 
 const BLOCK_META = {
-  "Terapia":                { color:"#f87171", bg:"rgba(248,113,113,0.12)", icon:"🩺" },
-  "Calentamiento / Activación": { color:"#fbbf24", bg:"rgba(251,191,36,0.12)",  icon:"🔥" },
-  "Trabajo central":        { color:"#34d399", bg:"rgba(52,211,153,0.12)",  icon:"💪" },
-  "Sin bloque":             { color:"#8892a4", bg:"rgba(136,146,164,0.1)",  icon:"📋" },
+  "Terapia":                { color:"#f87171", bg:"rgba(248,113,113,0.12)", icon:"T" },
+  "Calentamiento / Activación": { color:"#fbbf24", bg:"rgba(251,191,36,0.12)",  icon:"C" },
+  "Trabajo central":        { color:"#34d399", bg:"rgba(52,211,153,0.12)",  icon:"W" },
+  "Sin bloque":             { color:"#8892a4", bg:"rgba(136,146,164,0.1)",  icon:"G" },
 };
 
 function ProgressRing({ pct, size = 88 }) {
@@ -69,16 +69,15 @@ function ProgressDashboard({ patient, prescriptions, completedLogs }) {
             <span style={{ position:"absolute", fontSize:16, fontWeight:700, color:C.accent }}>{pct}%</span>
           </div>
         </div>
-        {pct===100 && <div style={{ marginTop:12, background:"rgba(38,166,154,0.2)", border:"1px solid rgba(38,166,154,0.3)", borderRadius:12, padding:"8px 14px", fontSize:13, color:C.accentL }}>🎉 ¡Completaste todo tu plan!</div>}
+        {pct===100 && <div style={{ marginTop:12, background:"rgba(38,166,154,0.2)", border:"1px solid rgba(38,166,154,0.3)", borderRadius:12, padding:"8px 14px", fontSize:13, color:C.accentL }}>Plan completado al 100%</div>}
       </div>
 
       {/* Stats */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
-        {[{v:streak,l:"Racha",e:"🔥"},{v:completedLogs.length,l:"Total",e:"✅"},{v:`${pct}%`,l:"Hoy",e:"📅"}].map((s,i)=>(
+        {[{v:streak,l:"Racha",c:"#ffa726"},{v:completedLogs.length,l:"Total",c:"#66bb6a"},{v:`${pct}%`,l:"Hoy",c:C.accent}].map((s,i)=>(
           <div key={i} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:"14px 8px", textAlign:"center" }}>
-            <div style={{ fontSize:20 }}>{s.e}</div>
-            <div style={{ fontSize:24, fontWeight:700, color:C.text, marginTop:2 }}>{s.v}</div>
-            <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{s.l}</div>
+            <div style={{ fontSize:24, fontWeight:700, color:s.c, marginTop:2 }}>{s.v}</div>
+            <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{s.l}</div>
           </div>
         ))}
       </div>
@@ -180,7 +179,7 @@ export default function PatientApp({ user }) {
   if(!patient) return (
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:24, padding:32, textAlign:"center", maxWidth:320, width:"100%" }}>
-        <div style={{ fontSize:48, marginBottom:12 }}>🔗</div>
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.5" style={{marginBottom:12}}><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
         <h2 style={{ color:C.text, fontSize:20, fontWeight:700, marginBottom:8 }}>Cuenta no vinculada</h2>
         <p style={{ color:C.muted, fontSize:14, marginBottom:20 }}>Pídele a tu fisioterapeuta el link de acceso.</p>
         <button onClick={()=>supabase.auth.signOut()} style={{ color:C.accent, fontSize:14, background:"none", border:"none", cursor:"pointer" }}>Cerrar sesión</button>
@@ -223,7 +222,7 @@ export default function PatientApp({ user }) {
         {tab==="exercises" && (
           prescriptions.length===0 ? (
             <div style={{ textAlign:"center", padding:"60px 0" }}>
-              <div style={{ fontSize:56, marginBottom:12 }}>🏋️</div>
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.3" style={{marginBottom:12}}><path d="M6.5 6.5h11M6.5 17.5h11M2 12h20M4 9.5v5M20 9.5v5"/></svg>
               <p style={{ color:C.text, fontWeight:600, fontSize:18 }}>Sin plan asignado</p>
               <p style={{ color:C.muted, fontSize:14, marginTop:6 }}>Tu fisioterapeuta pronto cargará tu rutina</p>
             </div>
@@ -301,7 +300,7 @@ export default function PatientApp({ user }) {
             <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column", gap:10, paddingBottom:12 }}>
               {messages.length===0 ? (
                 <div style={{ textAlign:"center", padding:"60px 0" }}>
-                  <div style={{ fontSize:48, marginBottom:10 }}>💬</div>
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.5" style={{marginBottom:10}}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
                   <p style={{ color:C.muted }}>Escríbele a tu fisioterapeuta</p>
                 </div>
               ) : messages.map(msg=>(

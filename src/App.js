@@ -20,10 +20,10 @@ const C = {
 
 const BLOCKS = ["Terapia","Calentamiento / Activación","Trabajo central"];
 const BLOCK_META = {
-  "Terapia":                { color:"#f87171", bg:"rgba(248,113,113,0.12)", icon:"🩺" },
-  "Calentamiento / Activación": { color:"#fbbf24", bg:"rgba(251,191,36,0.12)",  icon:"🔥" },
-  "Trabajo central":        { color:"#34d399", bg:"rgba(52,211,153,0.12)",  icon:"💪" },
-  "Sin bloque":             { color:"#8892a4", bg:"rgba(136,146,164,0.1)",  icon:"📋" },
+  "Terapia":                { color:"#f87171", bg:"rgba(248,113,113,0.12)", icon:"T" },
+  "Calentamiento / Activación": { color:"#fbbf24", bg:"rgba(251,191,36,0.12)",  icon:"C" },
+  "Trabajo central":        { color:"#34d399", bg:"rgba(52,211,153,0.12)",  icon:"W" },
+  "Sin bloque":             { color:"#8892a4", bg:"rgba(136,146,164,0.1)",  icon:"G" },
 };
 
 const inp = { background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"10px 14px", fontSize:14, color:C.text, outline:"none", width:"100%" };
@@ -135,13 +135,13 @@ function InviteModal({ patient, onClose }) {
     <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:50, display:"flex", alignItems:"flex-end", justifyContent:"center", padding:16 }}>
       <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:24, padding:24, width:"100%", maxWidth:400 }}>
         <div style={{ textAlign:"center", marginBottom:20 }}>
-          <div style={{ fontSize:40, marginBottom:10 }}>🔗</div>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.5" style={{marginBottom:10}}><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
           <h3 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:20, margin:0 }}>Link de invitación</h3>
           <p style={{ color:C.muted, fontSize:14, marginTop:6 }}>Envíale este link a <strong style={{color:C.text}}>{patient.name}</strong></p>
         </div>
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:14, marginBottom:16, wordBreak:"break-all", fontSize:12, color:C.muted, fontFamily:"monospace" }}>{link}</div>
         <div style={{ display:"grid", gap:10 }}>
-          <button onClick={copy} style={{ background:copied?"#34d399":`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:14, padding:13, color:"#fff", fontWeight:700, cursor:"pointer", fontSize:15 }}>{copied?"✓ ¡Copiado!":"📋 Copiar link"}</button>
+          <button onClick={copy} style={{ background:copied?"#34d399":`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:14, padding:13, color:"#fff", fontWeight:700, cursor:"pointer", fontSize:15 }}>{copied?"✓ ¡Copiado!":"Copiar link"}</button>
           <button onClick={onClose} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:13, color:C.muted, cursor:"pointer", fontSize:14 }}>Cerrar</button>
         </div>
       </div>
@@ -400,7 +400,7 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
 
           {total===0 ? (
             <div style={{ background:C.card, border:`2px dashed ${C.border}`, borderRadius:20, padding:40, textAlign:"center", color:C.dim, fontSize:14, marginBottom:14 }}>
-              <div style={{ fontSize:32, marginBottom:10 }}>💪</div>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.5" style={{marginBottom:10}}><path d="M6.5 6.5h11M6.5 17.5h11M2 12h20M4 9.5v5M20 9.5v5"/></svg>
               Selecciona ejercicios de la biblioteca
             </div>
           ) : (
@@ -458,7 +458,7 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
 }
 
 // ─── PATIENT PROFILE ──────────────────────────────────────────────────────────
-function PatientProfile({ patient, user, onBack, onPrescribe }) {
+function PatientProfile({ patient, user, onBack, onPrescribe, onApprove }) {
   const [prescriptions,setPrescriptions] = useState([]);
   const [loading,setLoading]             = useState(true);
   const [showInvite,setShowInvite]       = useState(false);
@@ -509,27 +509,32 @@ function PatientProfile({ patient, user, onBack, onPrescribe }) {
             <p style={{ color:C.muted, fontSize:14, margin:"0 0 6px" }}>{patient.condition||"Sin diagnóstico"}</p>
             {patient.age && <p style={{ color:C.dim, fontSize:12, margin:0 }}>{patient.age} años{patient.email?` · ${patient.email}`:""}</p>}
             <div style={{ marginTop:10 }}>
-              {patient.user_id && patient.invite_status==="aprobado"
-                ? <span style={{ background:"rgba(52,211,153,0.15)", border:"1px solid rgba(52,211,153,0.3)", color:"#34d399", fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>✓ App activa</span>
-                : patient.user_id && patient.invite_status==="pendiente"
-                ? <span style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.3)", color:"#fbbf24", fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>⏳ Aprobación pendiente</span>
-                : <span style={{ background:"rgba(136,146,164,0.1)", border:"1px solid rgba(136,146,164,0.2)", color:C.muted, fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>Sin acceso</span>
+              {patient.invite_status==="aprobado"
+                ? <span style={{ background:"rgba(102,187,106,0.15)", border:"1px solid rgba(102,187,106,0.3)", color:C.success, fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>Acceso activo</span>
+                : patient.invite_status==="pendiente"
+                ? <span style={{ background:"rgba(255,167,38,0.12)", border:"1px solid rgba(255,167,38,0.3)", color:C.warn, fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>Solicitud pendiente</span>
+                : <span style={{ background:"rgba(239,83,80,0.1)", border:"1px solid rgba(239,83,80,0.2)", color:C.danger, fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>Sin acceso</span>
               }
             </div>
           </div>
         </div>
-        <div style={{ display:"flex", gap:10, marginTop:16 }}>
-          <button onClick={()=>onPrescribe(patient)} style={{ flex:1, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:14, padding:12, color:"#fff", fontWeight:700, cursor:"pointer", fontSize:14 }}>💪 Prescribir nuevo</button>
-          <button onClick={()=>setShowInvite(true)} style={{ flex:1, background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:12, color:C.text, fontWeight:600, cursor:"pointer", fontSize:14 }}>🔗 Invitar</button>
+        <div style={{ display:"flex", gap:8, marginTop:16, flexWrap:"wrap" }}>
+          <button onClick={()=>onPrescribe(patient)} style={{ flex:1, background:C.accentG, border:"none", borderRadius:12, padding:11, color:"#fff", fontWeight:700, cursor:"pointer", fontSize:14, minWidth:140 }}>Nuevo plan</button>
+          {patient.invite_status!=="aprobado" && (
+            <button onClick={()=>onApprove(patient.id)}
+              style={{ flex:1, background:"rgba(255,167,38,0.15)", border:"1px solid rgba(255,167,38,0.35)", borderRadius:12, padding:11, color:C.warn, fontWeight:700, cursor:"pointer", fontSize:14, minWidth:120 }}>
+              Habilitar acceso
+            </button>
+          )}
+          <button onClick={()=>setShowInvite(true)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", color:C.text, cursor:"pointer", display:"flex", alignItems:"center" }}>{Icon.link}</button>
         </div>
       </div>
 
       {/* Stats row */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
-        {[{v:prescriptions.length,l:"Planes",e:"📋"},{v:streak,l:"Racha",e:"🔥"},{v:logs.length,l:"Completados",e:"✅"}].map((s,i)=>(
+        {[{v:prescriptions.length,l:"Planes",c:C.accent},{v:streak,l:"Racha",c:C.warn},{v:logs.length,l:"Completados",c:C.success}].map((s,i)=>(
           <div key={i} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:"12px 8px", textAlign:"center" }}>
-            <div style={{ fontSize:18 }}>{s.e}</div>
-            <div style={{ fontSize:22, fontWeight:700, color:C.text, marginTop:3 }}>{s.v}</div>
+            <div style={{ fontSize:22, fontWeight:700, color:s.c, marginTop:3 }}>{s.v}</div>
             <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{s.l}</div>
           </div>
         ))}
@@ -537,13 +542,13 @@ function PatientProfile({ patient, user, onBack, onPrescribe }) {
 
       {/* Tabs */}
       <div style={{ display:"flex", gap:4, background:C.surface, border:`1px solid ${C.border}`, borderRadius:18, padding:4, marginBottom:16 }}>
-        {[{id:"plans",label:"Planes",icon:"📋"},{id:"progress",label:"Progreso",icon:"📊"}].map(t=>(
+        {[{id:"plans",label:"Planes",icon:"G"},{id:"progress",label:"Progreso"}].map(t=>(
           <button key={t.id} onClick={()=>setActiveTab(t.id)}
             style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"10px", borderRadius:14, border:"none", cursor:"pointer", fontWeight:600, fontSize:14, transition:"all 0.2s",
               background: activeTab===t.id ? C.accent : "transparent",
               color: activeTab===t.id ? "#fff" : C.muted
             }}>
-            {t.icon} {t.label}
+            {t.label}
           </button>
         ))}
       </div>
@@ -552,7 +557,7 @@ function PatientProfile({ patient, user, onBack, onPrescribe }) {
       {activeTab==="plans" && (
         loading ? <Spinner/> : prescriptions.length===0 ? (
           <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:40, textAlign:"center" }}>
-            <div style={{ fontSize:36, marginBottom:10 }}>📋</div>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.5" style={{marginBottom:10}}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             <p style={{ color:C.muted }}>Sin planes prescritos</p>
           </div>
         ) : (
@@ -575,7 +580,7 @@ function PatientProfile({ patient, user, onBack, onPrescribe }) {
                     <div style={{ display:"flex", gap:8, marginBottom:14 }}>
                       <button onClick={()=>setEditPres(pres)}
                         style={{ flex:1, background:"rgba(38,166,154,0.15)", border:"1px solid rgba(38,166,154,0.3)", borderRadius:12, padding:"8px", color:C.accent, fontWeight:600, fontSize:13, cursor:"pointer" }}>
-                        ✏️ Editar plan
+                        Editar plan
                       </button>
                       <button onClick={()=>deletePrescription(pres.id)}
                         style={{ background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.25)", borderRadius:12, padding:"8px 14px", color:C.danger, fontWeight:600, fontSize:13, cursor:"pointer" }}>
@@ -584,7 +589,7 @@ function PatientProfile({ patient, user, onBack, onPrescribe }) {
                     </div>
                     {pres.note && (
                       <div style={{ background:"rgba(38,166,154,0.08)", border:"1px solid rgba(38,166,154,0.2)", borderRadius:12, padding:12, marginBottom:12, display:"flex", gap:8 }}>
-                        <span>📝</span>
+                        
                         <p style={{ color:C.accentL, fontSize:13, margin:0 }}>{pres.note}</p>
                       </div>
                     )}
@@ -620,7 +625,7 @@ function PatientProfile({ patient, user, onBack, onPrescribe }) {
         <div>
           {logs.length===0 ? (
             <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:40, textAlign:"center" }}>
-              <div style={{ fontSize:36, marginBottom:10 }}>📊</div>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.5" style={{marginBottom:10}}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
               <p style={{ color:C.muted }}>Aún no ha completado ejercicios</p>
             </div>
           ) : (
@@ -733,7 +738,7 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
 
       {loading ? <Spinner/> : filtered.length===0 ? (
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:48, textAlign:"center" }}>
-          <div style={{ fontSize:48, marginBottom:12 }}>👤</div>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.3" style={{marginBottom:12}}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
           <p style={{ color:C.muted }}>No hay pacientes aún</p>
         </div>
       ) : (
@@ -749,19 +754,19 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
                   <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                     <span style={{ color:C.text, fontWeight:600, fontSize:15 }}>{p.name}</span>
                     {p.user_id && p.invite_status==="aprobado" && <span style={{ fontSize:10, background:"rgba(52,211,153,0.15)", color:"#34d399", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>✓ Activo</span>}
-                    {p.user_id && p.invite_status==="pendiente" && <span style={{ fontSize:10, background:"rgba(251,191,36,0.15)", color:"#fbbf24", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>⏳ Pendiente</span>}
+                    {p.user_id && p.invite_status==="pendiente" && <span style={{ fontSize:10, background:"rgba(251,191,36,0.15)", color:"#fbbf24", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>Pendiente</span>}
                   </div>
                   <p style={{ color:C.muted, fontSize:13, marginTop:3 }}>{p.condition||"Sin diagnóstico"}{p.age?` · ${p.age} años`:""}</p>
                 </div>
                 <div style={{ display:"flex", gap:8 }} onClick={e=>e.stopPropagation()}>
-                  {p.user_id && p.invite_status==="pendiente" && (
+                  {p.user_id && p.invite_status!=="aprobado" && (
                     <button onClick={()=>approvePatient(p.id)}
                       style={{ background:"rgba(251,191,36,0.15)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:12, padding:"7px 12px", color:"#fbbf24", fontWeight:700, fontSize:13, cursor:"pointer" }}>
                       Aprobar
                     </button>
                   )}
-                  <button onClick={()=>onPrescribe(p)} style={{ background:"rgba(38,166,154,0.15)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:12, padding:"7px 12px", color:C.accent, fontWeight:600, fontSize:13, cursor:"pointer" }}>💪</button>
-                  {p.invite_token && <button onClick={()=>setShowInvite(p)} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"7px 10px", color:C.muted, fontSize:13, cursor:"pointer" }}>🔗</button>}
+                  <button onClick={()=>onPrescribe(p)} style={{ background:"rgba(38,166,154,0.15)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:12, padding:"7px 12px", color:C.accent, fontWeight:600, fontSize:13, cursor:"pointer" }}>Prescribir</button>
+                  {p.invite_token && <button onClick={()=>setShowInvite(p)} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"7px 10px", color:C.muted, fontSize:13, cursor:"pointer" }}>{Icon.link}</button>}
                 </div>
               </div>
             </div>
@@ -947,7 +952,7 @@ function MessagesView({ user }) {
       <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:26, margin:"0 0 20px" }}>Mensajes</h2>
       {loading ? <Spinner/> : messages.length===0 ? (
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:48, textAlign:"center" }}>
-          <div style={{ fontSize:48, marginBottom:12 }}>💬</div>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.3" style={{marginBottom:12}}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
           <p style={{ color:C.muted }}>Sin mensajes aún</p>
         </div>
       ) : (
@@ -1008,7 +1013,7 @@ function InviteHandler({ token, user }) {
     <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
       <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:24, padding:32, textAlign:"center", maxWidth:320, width:"100%" }}>
         {status==="linking" && <><div style={{ width:44, height:44, border:`4px solid ${C.accent}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 1s linear infinite", margin:"0 auto 16px" }}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style><p style={{ color:C.muted }}>Vinculando tu cuenta...</p></>}
-        {status==="success" && <><div style={{ fontSize:48, marginBottom:12 }}>⏳</div><p style={{ color:"#fbbf24", fontWeight:600, fontSize:18 }}>¡Solicitud enviada!</p><p style={{ color:C.muted, fontSize:13, marginTop:6 }}>Tu fisioterapeuta debe aprobar tu acceso. Te avisará cuando esté listo.</p></>}
+        {status==="success" && <><div style={{ fontSize:48, marginBottom:12 }}><div style={{width:40,height:40,border:"4px solid #ffa726",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite",margin:"0 auto 16px"}}/></div><p style={{ color:"#fbbf24", fontWeight:600, fontSize:18 }}>¡Solicitud enviada!</p><p style={{ color:C.muted, fontSize:13, marginTop:6 }}>Tu fisioterapeuta debe aprobar tu acceso. Te avisará cuando esté listo.</p></>}
         {status==="error" && <><div style={{ fontSize:48, marginBottom:12 }}>⚠️</div><p style={{ color:C.danger, fontWeight:600 }}>Error al vincular</p><p style={{ color:C.muted, fontSize:13 }}>Contacta a tu fisioterapeuta</p></>}
       </div>
     </div>
@@ -1065,9 +1070,9 @@ function BibliotecaView({ user }) {
   const filtered = exercises.filter(e=>e.name.toLowerCase().includes(search.toLowerCase())||(e.description||"").toLowerCase().includes(search.toLowerCase()));
 
   const BLOCK_META = {
-    "Terapia":                { color:"#f87171", icon:"🩺" },
-    "Calentamiento / Activacion": { color:"#fbbf24", icon:"🔥" },
-    "Trabajo central":        { color:"#34d399", icon:"💪" },
+    "Terapia":                { color:"#f87171", icon:"T" },
+    "Calentamiento / Activacion": { color:"#fbbf24", icon:"C" },
+    "Trabajo central":        { color:"#34d399", icon:"W" },
   };
 
   return (
@@ -1165,7 +1170,7 @@ function BibliotecaView({ user }) {
 
       {loading ? <Spinner/> : filtered.length===0 ? (
         <div style={{ background:C.card, border:"1px solid "+C.border, borderRadius:20, padding:60, textAlign:"center" }}>
-          <div style={{ fontSize:52, marginBottom:12 }}>🏋️</div>
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.3" style={{marginBottom:12}}><path d="M6.5 6.5h11M6.5 17.5h11M2 12h20M4 9.5v5M20 9.5v5"/></svg>
           <p style={{ color:C.text, fontWeight:600, fontSize:18, margin:"0 0 8px" }}>{exercises.length===0?"Crea tu primer ejercicio":"Sin resultados"}</p>
           <p style={{ color:C.muted, fontSize:14 }}>{exercises.length===0?"Haz clic en Crear ejercicio para empezar":"Intenta con otro nombre"}</p>
           {exercises.length===0 && (
@@ -1177,7 +1182,7 @@ function BibliotecaView({ user }) {
       ) : (
         <div style={{ display:"grid", gap:10 }}>
           {filtered.map(ex=>{
-            const bm = BLOCK_META[ex.default_block]||{color:C.muted,icon:"📋"};
+            const bm = BLOCK_META[ex.default_block]||{color:C.muted,icon:"G"};
             return (
               <div key={ex.id} style={{ background:C.card, border:"1px solid "+C.border, borderRadius:20, padding:18, transition:"all 0.2s" }}
                 onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent+"55"}
@@ -1206,7 +1211,7 @@ function BibliotecaView({ user }) {
                   <div style={{ display:"flex", gap:8, flexShrink:0 }}>
                     <button onClick={()=>openEdit(ex)}
                       style={{ background:"rgba(38,166,154,0.12)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:12, padding:"7px 12px", color:C.accent, fontWeight:600, fontSize:13, cursor:"pointer" }}>
-                      ✏️
+                      Editar
                     </button>
                     <button onClick={()=>deleteExercise(ex.id)}
                       style={{ background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:12, padding:"7px 10px", color:C.danger, fontSize:13, cursor:"pointer" }}>
@@ -1533,7 +1538,7 @@ function TherapistApp({ user }) {
         {tab==="dashboard"&&<DashboardView user={user} onNavigate={(t,p)=>{setTab(t);if(p)setProfilePatient(p);}}/>}
         {tab==="patients"&&!prescribePatient&&!profilePatient&&<PatientsView user={user} onPrescribe={handlePrescribe} onViewProfile={handleViewProfile}/>}
         {tab==="patients"&&prescribePatient&&<PrescribeView user={user} patient={prescribePatient} onBack={handleBack}/>}
-        {tab==="patients"&&profilePatient&&<PatientProfile patient={profilePatient} user={user} onBack={handleBack} onPrescribe={handlePrescribe}/>}
+        {tab==="patients"&&profilePatient&&<PatientProfile patient={profilePatient} user={user} onBack={handleBack} onPrescribe={handlePrescribe} onApprove={async(id)=>{ await supabase.from("patients").update({invite_status:"aprobado"}).eq("id",id); setProfilePatient(prev=>({...prev,invite_status:"aprobado"})); }}/>}
         {tab==="agenda"&&<AgendaView user={user}/>}
         {tab==="messages"&&<MessagesView user={user}/>}
 
