@@ -194,7 +194,7 @@ export default function PatientApp({ user }) {
   const pct        = totalEx>0?Math.round((todayDone/totalEx)*100):0;
   const firstName  = patient.name.split(" ")[0];
 
-  const navItems = [{id:"exercises",icon:"💪",label:"Plan"},{id:"progress",icon:"📊",label:"Progreso"},{id:"messages",icon:"💬",label:"Chat"}];
+  const navItems = [{id:"exercises",label:"Plan"},{id:"progress",label:"Progreso"},{id:"messages",label:"Chat"}];
 
   return (
     <div style={{ minHeight:"100vh", background:C.bg, paddingBottom:80 }}>
@@ -242,7 +242,7 @@ export default function PatientApp({ user }) {
                 </div>
                 {pres.note && (
                   <div style={{ background:"rgba(38,166,154,0.1)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:16, padding:14, marginBottom:16, display:"flex", gap:10 }}>
-                    <span style={{ fontSize:18 }}>📝</span>
+                    
                     <div>
                       <p style={{ color:C.accentL, fontSize:11, fontWeight:600, marginBottom:3 }}>Nota de tu fisio</p>
                       <p style={{ color:C.text, fontSize:14 }}>{pres.note}</p>
@@ -328,9 +328,9 @@ export default function PatientApp({ user }) {
         <div style={{ maxWidth:600, margin:"0 auto", display:"flex", justifyContent:"space-around" }}>
           {navItems.map(item=>(
             <button key={item.id} onClick={()=>setTab(item.id)}
-              style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, padding:"8px 20px", borderRadius:16, background:tab===item.id?"rgba(38,166,154,0.15)":"transparent", border:"none", cursor:"pointer", transition:"all 0.2s" }}>
-              <span style={{ fontSize:20 }}>{item.icon}</span>
-              <span style={{ fontSize:11, fontWeight:600, color:tab===item.id?C.accent:C.dim }}>{item.label}</span>
+              style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:"8px 24px", borderRadius:14, background:tab===item.id?"rgba(38,166,154,0.15)":"transparent", border:"none", cursor:"pointer", transition:"all 0.2s" }}>
+              <span style={{ fontSize:12, fontWeight:600, color:tab===item.id?C.accent:C.dim, letterSpacing:0.5, textTransform:"uppercase" }}>{item.label}</span>
+              {tab===item.id && <div style={{ width:20, height:2, background:C.accent, borderRadius:2 }}/>}
             </button>
           ))}
         </div>

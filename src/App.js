@@ -173,17 +173,37 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
   const [submitted,setSubmitted]   = useState(false);
   const [loading,setLoading]       = useState(false);
   const [customExs,setCustomExs]   = useState([]);
+  const [showNewEx,setShowNewEx]   = useState(false);
+  const [newEx,setNewEx]           = useState({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10"});
+  const [savingEx,setSavingEx]     = useState(false);
 
-  useEffect(()=>{
+  const refreshCustom = () =>
     supabase.from("custom_exercises").select("*").eq("therapist_id",user.id).order("created_at",{ascending:false})
-      .then(({data})=>{
-        setCustomExs((data||[]).map(e=>({
-          id:"custom_"+e.id, dbId:e.id, name:e.name, description:e.description||"",
-          category:e.category||"Personalizado", defaultSets:e.default_sets||3,
-          defaultReps:e.default_reps||"10", videoUrl:e.video_url, isCustom:true,
-        })));
-      });
-  },[user.id]);
+      .then(({data})=>setCustomExs((data||[]).map(e=>({
+        id:"custom_"+e.id, dbId:e.id, name:e.name, description:e.description||"",
+        category:e.category||"Personalizado", defaultSets:e.default_sets||3,
+        defaultReps:e.default_reps||"10", videoUrl:e.video_url, isCustom:true,
+      }))));
+
+  useEffect(()=>{ refreshCustom(); },[user.id]);
+
+  const saveNewEx = async () => {
+    if(!newEx.name.trim()) return;
+    setSavingEx(true);
+    const {data} = await supabase.from("custom_exercises").insert({
+      therapist_id:user.id, name:newEx.name.trim(), description:newEx.description,
+      category:newEx.category, default_block:activeBlock,
+      default_sets:parseInt(newEx.default_sets)||3, default_reps:newEx.default_reps,
+    }).select().single();
+    if(data){
+      const ex = {id:"custom_"+data.id, dbId:data.id, name:data.name, description:data.description||"",
+        category:data.category, defaultSets:data.default_sets, defaultReps:data.default_reps, isCustom:true};
+      setCustomExs(prev=>[ex,...prev]);
+      setSelected(prev=>({...prev,[activeBlock]:[...prev[activeBlock],{...ex,sets:ex.defaultSets,reps:ex.defaultReps,block:activeBlock}]}));
+    }
+    setNewEx({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10"});
+    setShowNewEx(false); setSavingEx(false);
+  };
 
   const allExercises = [...customExs, ...EXERCISES];
   const allCategories = ["Todos","Mis ejercicios",...CATEGORIES];
@@ -249,7 +269,60 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24 }}>
         {/* LEFT - Library */}
         <div>
-          <p style={{ fontSize:11, fontWeight:700, color:C.dim, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>Biblioteca · {EXERCISES.length}</p>
+          {/* New exercise modal */}
+          {showNewEx && (
+            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.82)", zIndex:50, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+              <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:24, width:"100%", maxWidth:460 }}>
+                <h3 style={{ color:C.text, fontWeight:700, fontSize:18, margin:"0 0 18px" }}>Nuevo ejercicio personalizado</h3>
+                <div style={{ display:"grid", gap:12 }}>
+                  <div>
+                    <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:5 }}>Nombre *</label>
+                    <input value={newEx.name} onChange={e=>setNewEx({...newEx,name:e.target.value})} placeholder="Ej: Sentadilla isométrica"
+                      style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 13px", fontSize:14, color:C.text, outline:"none", width:"100%" }}/>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:5 }}>Descripción / instrucciones</label>
+                    <textarea value={newEx.description} onChange={e=>setNewEx({...newEx,description:e.target.value})} rows={3} placeholder="Cómo se realiza..."
+                      style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 13px", fontSize:14, color:C.text, outline:"none", width:"100%", resize:"none", lineHeight:1.5 }}/>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
+                    <div>
+                      <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:5 }}>Categoría</label>
+                      <select value={newEx.category} onChange={e=>setNewEx({...newEx,category:e.target.value})}
+                        style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px", fontSize:12, color:C.text, outline:"none", width:"100%" }}>
+                        {["Rehabilitacion","Core / Abdomen","Gluteos / Cadera","Pierna / Rodilla","Hombro / Escapular","Pecho / Empuje","Espalda / Traccion","Tobillo / Pie","Cervical / Cuello","Calentamiento","Full Body","Otro"].map(cat=><option key={cat}>{cat}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:5 }}>Series</label>
+                      <input type="number" value={newEx.default_sets} min="1" onChange={e=>setNewEx({...newEx,default_sets:e.target.value})}
+                        style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px", fontSize:14, color:C.text, outline:"none", width:"100%", textAlign:"center", fontWeight:700 }}/>
+                    </div>
+                    <div>
+                      <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:5 }}>Reps</label>
+                      <input type="text" value={newEx.default_reps} onChange={e=>setNewEx({...newEx,default_reps:e.target.value})}
+                        style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px", fontSize:14, color:C.text, outline:"none", width:"100%", textAlign:"center", fontWeight:700 }}/>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:10, marginTop:18 }}>
+                  <button onClick={saveNewEx} disabled={!newEx.name.trim()||savingEx}
+                    style={{ flex:1, background:C.accentG, border:"none", borderRadius:12, padding:12, color:"#fff", fontWeight:700, cursor:"pointer", opacity:savingEx?0.6:1, fontSize:14 }}>
+                    {savingEx?"Guardando...":"Crear y agregar al plan"}
+                  </button>
+                  <button onClick={()=>setShowNewEx(false)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 16px", color:C.muted, cursor:"pointer" }}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+            <p style={{ fontSize:11, fontWeight:700, color:C.dim, letterSpacing:2, textTransform:"uppercase", margin:0 }}>Biblioteca · {allExercises.length}</p>
+            <button onClick={()=>setShowNewEx(true)}
+              style={{ display:"flex", alignItems:"center", gap:5, background:"rgba(38,166,154,0.12)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:9, padding:"5px 10px", color:C.accent, fontSize:12, fontWeight:600, cursor:"pointer" }}>
+              {Icon.plus} Crear ejercicio
+            </button>
+          </div>
 
           {/* Block selector */}
           <div style={{ marginBottom:14 }}>
@@ -1078,10 +1151,10 @@ function BibliotecaView({ user }) {
           <h2 style={{ fontFamily:"Fraunces,serif", color:C.text, fontSize:26, margin:0 }}>Mi Biblioteca</h2>
           <p style={{ color:C.muted, fontSize:13, marginTop:4 }}>{exercises.length} ejercicios personalizados</p>
         </div>
-        <button onClick={openCreate}
-          style={{ background:"linear-gradient(135deg,"+C.accent+",#1a7a75)", border:"none", borderRadius:14, padding:"10px 18px", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:14, boxShadow:"0 4px 16px rgba(38,166,154,0.25)" }}>
-          + Crear ejercicio
-        </button>
+        <button onClick={()=>setShowNewEx(true)}
+              style={{ display:"flex", alignItems:"center", gap:5, background:"rgba(38,166,154,0.12)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:10, padding:"5px 10px", color:C.accent, fontSize:12, fontWeight:600, cursor:"pointer" }}>
+              {Icon.plus} Crear ejercicio
+            </button>
       </div>
 
       <div style={{ position:"relative", marginBottom:16 }}>
@@ -1151,7 +1224,7 @@ function BibliotecaView({ user }) {
 }
 
 // ─── DASHBOARD VIEW ───────────────────────────────────────────────────────────
-function DashboardView({ user }) {
+function DashboardView({ user, onNavigate }) {
   const [stats,setStats]    = useState({patients:0,active:0,pending:0,appointments:0,messages:0});
   const [recent,setRecent]  = useState([]);
   const [apts,setApts]      = useState([]);
@@ -1176,10 +1249,10 @@ function DashboardView({ user }) {
   const today=new Date().toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long"});
 
   const statCards=[
-    {label:"Pacientes", value:stats.patients, sub:`${stats.active} activos`, color:C.accent},
-    {label:"Pendientes", value:stats.pending, sub:"por aprobar", color:C.warn},
-    {label:"Citas", value:stats.appointments, sub:"próximas", color:"#7e57c2"},
-    {label:"Mensajes", value:stats.messages, sub:"sin leer", color:"#42a5f5"},
+    {label:"Pacientes", value:stats.patients, sub:`${stats.active} activos`, color:C.accent, tab:"patients"},
+    {label:"Pendientes", value:stats.pending, sub:"por aprobar", color:C.warn, tab:"patients"},
+    {label:"Citas", value:stats.appointments, sub:"próximas", color:"#7e57c2", tab:"agenda"},
+    {label:"Mensajes", value:stats.messages, sub:"sin leer", color:"#42a5f5", tab:"messages"},
   ];
 
   if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:80}}><div style={{width:32,height:32,border:`3px solid ${C.accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div>;
@@ -1193,7 +1266,10 @@ function DashboardView({ user }) {
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:14,marginBottom:24}}>
         {statCards.map((s,i)=>(
-          <div key={i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:20,position:"relative",overflow:"hidden"}}>
+          <div key={i} onClick={()=>s.tab&&onNavigate(s.tab)}
+            style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:20,position:"relative",overflow:"hidden",cursor:s.tab?"pointer":"default",transition:"all 0.15s"}}
+            onMouseEnter={e=>{ if(s.tab) e.currentTarget.style.borderColor=s.color+"66"; }}
+            onMouseLeave={e=>{ e.currentTarget.style.borderColor=C.border; }}>
             <div style={{position:"absolute",top:-16,right:-16,width:70,height:70,borderRadius:"50%",background:`${s.color}18`}}/>
             <p style={{color:s.color,fontSize:36,fontWeight:700,margin:0,lineHeight:1}}>{s.value}</p>
             <p style={{color:C.text,fontSize:14,fontWeight:600,margin:"6px 0 2px"}}>{s.label}</p>
@@ -1222,7 +1298,10 @@ function DashboardView({ user }) {
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:20}}>
           <h3 style={{color:C.text,fontSize:15,fontWeight:600,margin:"0 0 16px",display:"flex",alignItems:"center",gap:8}}>{Icon.patients} Pacientes recientes</h3>
           {recent.map(p=>(
-            <div key={p.id} style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
+            <div key={p.id} onClick={()=>onNavigate("patients",p)}
+              style={{display:"flex",gap:10,alignItems:"center",marginBottom:12,cursor:"pointer",borderRadius:12,padding:"4px",transition:"background 0.15s"}}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(38,166,154,0.06)"}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
               <div style={{width:36,height:36,borderRadius:10,background:C.accentG,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:12,flexShrink:0}}>{(p.name||"?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}</div>
               <div style={{flex:1,minWidth:0}}>
                 <p style={{color:C.text,fontWeight:600,fontSize:13,margin:0}}>{p.name}</p>
@@ -1404,7 +1483,6 @@ function TherapistApp({ user }) {
     {id:"patients",  label:"Pacientes",  icon:Icon.patients},
     {id:"agenda",    label:"Agenda",     icon:Icon.agenda},
     {id:"messages",  label:"Mensajes",   icon:Icon.messages},
-    {id:"payments",  label:"Pagos",      icon:Icon.payments},
   ];
 
   const sideW = collapsed ? 64 : 220;
@@ -1452,13 +1530,13 @@ function TherapistApp({ user }) {
       </aside>
 
       <main style={{flex:1,marginLeft:sideW,transition:"margin-left 0.25s ease",padding:"32px 28px",minHeight:"100vh",overflowX:"hidden"}}>
-        {tab==="dashboard"&&<DashboardView user={user}/>}
+        {tab==="dashboard"&&<DashboardView user={user} onNavigate={(t,p)=>{setTab(t);if(p)setProfilePatient(p);}}/>}
         {tab==="patients"&&!prescribePatient&&!profilePatient&&<PatientsView user={user} onPrescribe={handlePrescribe} onViewProfile={handleViewProfile}/>}
         {tab==="patients"&&prescribePatient&&<PrescribeView user={user} patient={prescribePatient} onBack={handleBack}/>}
         {tab==="patients"&&profilePatient&&<PatientProfile patient={profilePatient} user={user} onBack={handleBack} onPrescribe={handlePrescribe}/>}
         {tab==="agenda"&&<AgendaView user={user}/>}
         {tab==="messages"&&<MessagesView user={user}/>}
-        {tab==="payments"&&<PaymentsView user={user}/>}
+
       </main>
     </div>
   );
