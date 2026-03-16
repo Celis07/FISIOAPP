@@ -199,16 +199,28 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
   const saveNewEx = async () => {
     if(!newEx.name.trim()) return;
     setSavingEx(true);
-    const {data} = await supabase.from("custom_exercises").insert({
+    const {data, error} = await supabase.from("custom_exercises").insert({
       therapist_id:user.id, name:newEx.name.trim(), description:newEx.description,
       category:newEx.category, default_block:activeBlock,
       default_sets:parseInt(newEx.default_sets)||3, default_reps:newEx.default_reps,
     }).select().single();
+    if(error){ alert("Error al guardar: "+error.message); setSavingEx(false); return; }
     if(data){
-      const ex = {id:"custom_"+data.id, dbId:data.id, name:data.name, description:data.description||"",
-        category:data.category, defaultSets:data.default_sets, defaultReps:data.default_reps, isCustom:true};
-      setCustomExs(prev=>[ex,...prev]);
-      setSelected(prev=>({...prev,[activeBlock]:[...prev[activeBlock],{...ex,sets:ex.defaultSets,reps:ex.defaultReps,block:activeBlock}]}));
+      // Use a unique numeric-safe id for the exercise
+      const exId = 900000 + Math.floor(Math.random()*99999);
+      const ex = {
+        id: exId,
+        name:data.name, description:data.description||"",
+        category:data.category, defaultSets:data.default_sets,
+        defaultReps:data.default_reps, isCustom:true, dbId:data.id,
+      };
+      setCustomExs(prev=>[{...ex,id:"custom_"+data.id},...prev]);
+      setSelected(prev=>({
+        ...prev,
+        [activeBlock]:[...prev[activeBlock],{
+          ...ex, sets:ex.defaultSets, reps:ex.defaultReps, block:activeBlock
+        }]
+      }));
     }
     setNewEx({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10"});
     setShowNewEx(false); setSavingEx(false);
@@ -275,56 +287,60 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
         </div>
       </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24 }}>
-        {/* LEFT - Library */}
-        <div>
-          {/* New exercise modal */}
-          {showNewEx && (
-            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.82)", zIndex:50, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-              <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:24, width:"100%", maxWidth:460 }}>
-                <h3 style={{ color:C.text, fontWeight:700, fontSize:18, margin:"0 0 18px" }}>Nuevo ejercicio personalizado</h3>
-                <div style={{ display:"grid", gap:12 }}>
-                  <div>
-                    <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:5 }}>Nombre *</label>
-                    <input value={newEx.name} onChange={e=>setNewEx({...newEx,name:e.target.value})} placeholder="Ej: Sentadilla isométrica"
-                      style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 13px", fontSize:14, color:C.text, outline:"none", width:"100%" }}/>
-                  </div>
-                  <div>
-                    <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:5 }}>Descripción / instrucciones</label>
-                    <textarea value={newEx.description} onChange={e=>setNewEx({...newEx,description:e.target.value})} rows={3} placeholder="Cómo se realiza..."
-                      style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 13px", fontSize:14, color:C.text, outline:"none", width:"100%", resize:"none", lineHeight:1.5 }}/>
-                  </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
-                    <div>
-                      <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:5 }}>Categoría</label>
-                      <select value={newEx.category} onChange={e=>setNewEx({...newEx,category:e.target.value})}
-                        style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px", fontSize:12, color:C.text, outline:"none", width:"100%" }}>
-                        {["Rehabilitacion","Core / Abdomen","Gluteos / Cadera","Pierna / Rodilla","Hombro / Escapular","Pecho / Empuje","Espalda / Traccion","Tobillo / Pie","Cervical / Cuello","Calentamiento","Full Body","Otro"].map(cat=><option key={cat}>{cat}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:5 }}>Series</label>
-                      <input type="number" value={newEx.default_sets} min="1" onChange={e=>setNewEx({...newEx,default_sets:e.target.value})}
-                        style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px", fontSize:14, color:C.text, outline:"none", width:"100%", textAlign:"center", fontWeight:700 }}/>
-                    </div>
-                    <div>
-                      <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:5 }}>Reps</label>
-                      <input type="text" value={newEx.default_reps} onChange={e=>setNewEx({...newEx,default_reps:e.target.value})}
-                        style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px", fontSize:14, color:C.text, outline:"none", width:"100%", textAlign:"center", fontWeight:700 }}/>
-                    </div>
-                  </div>
+      {/* New exercise modal — outside grid so position:fixed works correctly */}
+      {showNewEx && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px", overflowY:"auto" }}>
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:24, width:"100%", maxWidth:460, margin:"auto" }}>
+            <h3 style={{ color:C.text, fontWeight:700, fontSize:17, margin:"0 0 16px" }}>Nuevo ejercicio</h3>
+            <div style={{ display:"grid", gap:11 }}>
+              <div>
+                <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:4 }}>Nombre *</label>
+                <input value={newEx.name} onChange={e=>setNewEx({...newEx,name:e.target.value})} placeholder="Ej: Sentadilla isométrica"
+                  style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 13px", fontSize:14, color:C.text, outline:"none", width:"100%" }}/>
+              </div>
+              <div>
+                <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:4 }}>Descripción</label>
+                <textarea value={newEx.description} onChange={e=>setNewEx({...newEx,description:e.target.value})} rows={3} placeholder="Cómo se realiza..."
+                  style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 13px", fontSize:14, color:C.text, outline:"none", width:"100%", resize:"none", lineHeight:1.5 }}/>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+                <div>
+                  <label style={{ fontSize:11, color:C.muted, display:"block", marginBottom:4 }}>Categoría</label>
+                  <select value={newEx.category} onChange={e=>setNewEx({...newEx,category:e.target.value})}
+                    style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px", fontSize:12, color:C.text, outline:"none", width:"100%" }}>
+                    {["Rehabilitacion","Core / Abdomen","Gluteos / Cadera","Pierna / Rodilla","Hombro / Escapular","Pecho / Empuje","Espalda / Traccion","Tobillo / Pie","Cervical / Cuello","Calentamiento","Full Body","Otro"].map(cat=><option key={cat}>{cat}</option>)}
+                  </select>
                 </div>
-                <div style={{ display:"flex", gap:10, marginTop:18 }}>
-                  <button onClick={saveNewEx} disabled={!newEx.name.trim()||savingEx}
-                    style={{ flex:1, background:C.accentG, border:"none", borderRadius:12, padding:12, color:"#fff", fontWeight:700, cursor:"pointer", opacity:savingEx?0.6:1, fontSize:14 }}>
-                    {savingEx?"Guardando...":"Crear y agregar al plan"}
-                  </button>
-                  <button onClick={()=>setShowNewEx(false)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 16px", color:C.muted, cursor:"pointer" }}>Cancelar</button>
+                <div>
+                  <label style={{ fontSize:11, color:C.muted, display:"block", marginBottom:4 }}>Series</label>
+                  <input type="number" value={newEx.default_sets} min="1" onChange={e=>setNewEx({...newEx,default_sets:e.target.value})}
+                    style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px", fontSize:14, color:C.text, outline:"none", width:"100%", textAlign:"center", fontWeight:700 }}/>
+                </div>
+                <div>
+                  <label style={{ fontSize:11, color:C.muted, display:"block", marginBottom:4 }}>Reps</label>
+                  <input type="text" value={newEx.default_reps} onChange={e=>setNewEx({...newEx,default_reps:e.target.value})}
+                    style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px", fontSize:14, color:C.text, outline:"none", width:"100%", textAlign:"center", fontWeight:700 }}/>
                 </div>
               </div>
             </div>
-          )}
+            <p style={{ color:C.muted, fontSize:12, margin:"10px 0 0" }}>Se agregará al bloque: <strong style={{color:C.accentL}}>{activeBlock}</strong></p>
+            <div style={{ display:"flex", gap:10, marginTop:16 }}>
+              <button onClick={saveNewEx} disabled={!newEx.name.trim()||savingEx}
+                style={{ flex:1, background:C.accentG, border:"none", borderRadius:12, padding:12, color:"#fff", fontWeight:700, cursor:"pointer", opacity:savingEx?0.6:1, fontSize:14 }}>
+                {savingEx?"Guardando...":"Crear y agregar al plan"}
+              </button>
+              <button onClick={()=>setShowNewEx(false)}
+                style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 16px", color:C.muted, cursor:"pointer" }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24 }}>
+        {/* LEFT - Library */}
+        <div>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
             <p style={{ fontSize:11, fontWeight:700, color:C.dim, letterSpacing:2, textTransform:"uppercase", margin:0 }}>Biblioteca · {allExercises.length}</p>
             <button onClick={()=>setShowNewEx(true)}
@@ -891,14 +907,16 @@ function PatientProfile({ patient, user, onBack, onPrescribe, onApprove }) {
 }
 
 // ─── PATIENTS LIST ─────────────────────────────────────────────────────────────
-function PatientsView({ user, onPrescribe, onViewProfile }) {
-  const [patients,setPatients]   = useState([]);
-  const [loading,setLoading]     = useState(true);
-  const [search,setSearch]       = useState("");
-  const [showForm,setShowForm]   = useState(false);
-  const [showInvite,setShowInvite]= useState(null);
+function PatientsView({ user, onPrescribe, onViewProfile, initialFilter, onClearFilter }) {
+  const [patients,setPatients]     = useState([]);
+  const [loading,setLoading]       = useState(true);
+  const [search,setSearch]         = useState("");
+  const [statusFilter,setStatusFilter] = useState(initialFilter||null);
+  const [showForm,setShowForm]     = useState(false);
+  const [showInvite,setShowInvite] = useState(null);
   const [form,setForm] = useState({name:"",age:"",condition:"",next_session:"",email:""});
 
+  useEffect(()=>{ if(initialFilter) setStatusFilter(initialFilter); },[initialFilter]);
   useEffect(()=>{ fetchPatients(); },[]);
 
   const fetchPatients = async () => {
@@ -935,7 +953,11 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
     if(data&&!error) setShowInvite(data);
   };
 
-  const filtered = patients.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = patients.filter(p=>{
+    const ms = p.name.toLowerCase().includes(search.toLowerCase());
+    const mf = !statusFilter || p.invite_status===statusFilter;
+    return ms && mf;
+  });
 
   return (
     <div>
@@ -951,6 +973,13 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
           + Nuevo
         </button>
       </div>
+
+      {statusFilter && (
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,background:"rgba(255,167,38,0.1)",border:"1px solid rgba(255,167,38,0.3)",borderRadius:12,padding:"8px 14px"}}>
+          <span style={{color:C.warn,fontSize:13,fontWeight:600}}>Filtrando: {statusFilter==="pendiente"?"Pendientes de aprobación":statusFilter}</span>
+          <button onClick={()=>{setStatusFilter(null);if(onClearFilter)onClearFilter();}} style={{background:"transparent",border:"none",color:C.warn,cursor:"pointer",fontSize:16,marginLeft:"auto",padding:"0 4px"}}>✕</button>
+        </div>
+      )}
 
       {showForm && (
         <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:20, marginBottom:16 }}>
@@ -1535,7 +1564,7 @@ function DashboardView({ user, onNavigate }) {
       supabase.from("patients").select("*"),
       supabase.from("appointments").select("*").gte("date",localDateStr(new Date())).order("date").limit(4),
       supabase.from("messages").select("*").eq("unread",true),
-      supabase.from("access_requests").select("*").order("created_at",{ascending:false}),
+      supabase.from("access_requests").select("*").order("created_at",{ascending:false}).then(r=>r.error?{data:[]}:r),
     ]);
     const p = patients||[];
     setStats({
@@ -1574,7 +1603,7 @@ function DashboardView({ user, onNavigate }) {
 
   const statCards=[
     {label:"Pacientes",   value:stats.patients,     sub:`${stats.active} activos`,  color:C.accent,  tab:"patients"},
-    {label:"Pendientes",  value:stats.pending,       sub:"por aprobar",              color:C.warn,    tab:"patients"},
+    {label:"Pendientes",  value:stats.pending,       sub:"por aprobar",              color:C.warn,    tab:"patients", filter:"pendiente"},
     {label:"Citas",       value:stats.appointments,  sub:"próximas",                 color:"#7e57c2", tab:"agenda"},
     {label:"Mensajes",    value:stats.messages,      sub:"sin leer",                 color:"#42a5f5", tab:"messages"},
   ];
@@ -1624,7 +1653,7 @@ function DashboardView({ user, onNavigate }) {
       {/* Stat cards — compact 2x2 grid */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
         {statCards.map((s,i)=>(
-          <div key={i} onClick={()=>s.tab&&onNavigate(s.tab)}
+          <div key={i} onClick={()=>s.tab&&onNavigate(s.tab,null,s.filter)}
             style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",position:"relative",overflow:"hidden",cursor:s.tab?"pointer":"default",transition:"border-color 0.15s"}}
             onMouseEnter={e=>{ if(s.tab) e.currentTarget.style.borderColor=s.color+"55"; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor=C.border; }}>
@@ -1637,9 +1666,9 @@ function DashboardView({ user, onNavigate }) {
       </div>
 
       {/* Two columns */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
         {/* Upcoming */}
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 16px"}}>
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 16px",minWidth:0,overflow:"hidden"}}>
           <h3 style={{color:C.text,fontSize:13,fontWeight:600,margin:"0 0 12px",display:"flex",alignItems:"center",gap:7}}>
             {Icon.agenda} Próximas citas
           </h3>
@@ -1660,7 +1689,7 @@ function DashboardView({ user, onNavigate }) {
         </div>
 
         {/* Recent patients */}
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 16px"}}>
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 16px",minWidth:0,overflow:"hidden"}}>
           <h3 style={{color:C.text,fontSize:13,fontWeight:600,margin:"0 0 12px",display:"flex",alignItems:"center",gap:7}}>
             {Icon.patients} Pacientes recientes
           </h3>
@@ -1692,6 +1721,7 @@ function TherapistApp({ user }) {
   const [prescribePatient,setPrescribePatient] = useState(null);
   const [profilePatient,setProfilePatient]     = useState(null);
   const [collapsed,setCollapsed]               = useState(true); // start collapsed
+  const [pendingFilter,setPendingFilter]       = useState(null);
 
   const handleViewProfile = p=>{ setProfilePatient(p); setPrescribePatient(null); };
   const handlePrescribe   = p=>{ setPrescribePatient(p); setProfilePatient(null); setTab("patients"); };
@@ -1711,7 +1741,7 @@ function TherapistApp({ user }) {
       {/* Sidebar */}
       <aside style={{width:sideW,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:20,transition:"width 0.2s cubic-bezier(.16,1,.3,1)",overflow:"hidden",flexShrink:0}}>
         {/* Logo + collapse button */}
-        <div style={{padding:"12px 10px",display:"flex",alignItems:"center",justifyContent:collapsed?"center":"space-between",borderBottom:`1px solid ${C.border}`,flexShrink:0,gap:8}}>
+        <div style={{padding:"12px 10px",paddingTop:"calc(12px + env(safe-area-inset-top,0px))",display:"flex",alignItems:"center",justifyContent:collapsed?"center":"space-between",borderBottom:`1px solid ${C.border}`,flexShrink:0,gap:8}}>
           {!collapsed && (
             <div style={{display:"flex",alignItems:"center",gap:9,minWidth:0}}>
               <div style={{width:30,height:30,background:C.accentG,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -1756,9 +1786,9 @@ function TherapistApp({ user }) {
         </div>
       </aside>
 
-      <main style={{flex:1,marginLeft:sideW,transition:"margin-left 0.2s cubic-bezier(.16,1,.3,1)",padding:"24px 24px",minHeight:"100vh",overflowX:"hidden",overflowY:"auto"}}>
-        {tab==="dashboard"&&<DashboardView user={user} onNavigate={(t,p)=>{setTab(t);if(p)setProfilePatient(p);}}/>}
-        {tab==="patients"&&!prescribePatient&&!profilePatient&&<PatientsView user={user} onPrescribe={handlePrescribe} onViewProfile={handleViewProfile}/>}
+      <main style={{flex:1,marginLeft:sideW,transition:"margin-left 0.2s cubic-bezier(.16,1,.3,1)",padding:"24px",paddingTop:"calc(24px + env(safe-area-inset-top,0px))",minHeight:"100vh",overflowX:"hidden",overflowY:"auto"}}>
+        {tab==="dashboard"&&<DashboardView user={user} onNavigate={(t,p,filter)=>{setTab(t);if(p)setProfilePatient(p);if(filter)setPendingFilter(filter);}}/>}
+        {tab==="patients"&&!prescribePatient&&!profilePatient&&<PatientsView user={user} onPrescribe={handlePrescribe} onViewProfile={handleViewProfile} initialFilter={pendingFilter} onClearFilter={()=>setPendingFilter(null)}/>}
         {tab==="patients"&&prescribePatient&&<PrescribeView user={user} patient={prescribePatient} onBack={handleBack}/>}
         {tab==="patients"&&profilePatient&&<PatientProfile patient={profilePatient} user={user} onBack={handleBack} onPrescribe={handlePrescribe} onApprove={async(id)=>{ await supabase.from("patients").update({invite_status:"aprobado"}).eq("id",id); setProfilePatient(prev=>({...prev,invite_status:"aprobado"})); }}/>}
         {tab==="agenda"&&<AgendaView user={user}/>}
@@ -1803,7 +1833,10 @@ export default function App() {
     const {data: existing} = await supabase.from("access_requests")
       .select("id").eq("user_id",user.id).maybeSingle();
     if(!existing) {
-      await supabase.from("access_requests").insert({user_id:user.id, email:user.email});
+      // Silently fail if table doesn't exist yet
+      try {
+        await supabase.from("access_requests").insert({user_id:user.id, email:user.email});
+      } catch(e) {}
     }
     setRole("pending");
     })();
