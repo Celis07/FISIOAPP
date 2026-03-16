@@ -78,6 +78,15 @@ function Spinner() {
   );
 }
 
+
+// Format date as local YYYY-MM-DD (avoids UTC offset bug)
+function localDateStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth()+1).padStart(2,'0');
+  const d = String(date.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+
 // ─── LOGIN ──────────────────────────────────────────────────────────────────
 function LoginView() {
   const [email,setEmail]       = useState("");
@@ -918,6 +927,7 @@ function AgendaView({ user }) {
 
   // Build week days
   const today = new Date();
+  today.setHours(0,0,0,0);
   const startOfWeek = new Date(today);
   startOfWeek.setDate(today.getDate() - today.getDay() + 1 + weekOffset*7); // Monday
 
@@ -928,7 +938,7 @@ function AgendaView({ user }) {
   });
 
   const getAppts = (date,hour) => {
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = localDateStr(date);
     return appointments.filter(a=>a.date===dateStr&&a.time===hour);
   };
 
@@ -997,7 +1007,7 @@ function AgendaView({ user }) {
             <div style={{ display:"grid", gridTemplateColumns:`64px repeat(7,1fr)`, gap:0, marginBottom:2 }}>
               <div/>
               {weekDays.map((d,i)=>{
-                const isToday=d.toDateString()===new Date().toDateString();
+                const isToday=localDateStr(d)===localDateStr(new Date());
                 return (
                   <div key={i} style={{ textAlign:"center", padding:"8px 4px", borderRadius:12, background:isToday?"rgba(38,166,154,0.12)":"transparent" }}>
                     <p style={{ color:C.muted, fontSize:11, fontWeight:600, margin:0 }}>{dayNames[i]}</p>
@@ -1016,7 +1026,7 @@ function AgendaView({ user }) {
                 </div>
                 {/* Day cells */}
                 {weekDays.map((day,di)=>{
-                  const dateStr = day.toISOString().split("T")[0];
+                  const dateStr = localDateStr(day);
                   const appts   = getAppts(day,hour);
                   const canAdd  = appts.length < MAX_PER_SLOT;
                   return (
@@ -1388,7 +1398,7 @@ function DashboardView({ user, onNavigate }) {
     const fetch = async () => {
       const [{data:patients},{data:appointments},{data:messages}] = await Promise.all([
         supabase.from("patients").select("*"),
-        supabase.from("appointments").select("*").gte("date", new Date().toISOString().split("T")[0]).order("date").limit(5),
+        supabase.from("appointments").select("*").gte("date", localDateStr(new Date())).order("date").limit(5),
         supabase.from("messages").select("*").eq("unread",true),
       ]);
       const p=patients||[];

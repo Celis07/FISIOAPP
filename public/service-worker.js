@@ -1,80 +1,61 @@
-const CACHE_NAME = 'fisioapp-v1';
-const STATIC_ASSETS = [
+const CACHE = 'fisioapp-v2';
+const OFFLINE_URL = '/offline.html';
+
+const PRECACHE = [
   '/',
   '/index.html',
-  '/static/js/main.chunk.js',
-  '/static/js/bundle.js',
-  '/static/css/main.chunk.css',
-  'https://cdn.tailwindcss.com',
-  'https://fonts.googleapis.com/css2?family=Fraunces:wght@700;900&family=Inter:wght@400;500;600;700&display=swap',
+  '/manifest.json',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png',
 ];
 
-// Install: cache static assets
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(STATIC_ASSETS).catch(() => {
-        // Ignore errors for assets that may not exist yet
-      });
-    })
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE).then(c => c.addAll(PRECACHE).catch(() => {}))
   );
   self.skipWaiting();
 });
 
-// Activate: clean old caches
-self.addEventListener('activate', event => {
-  event.waitUntil(
+self.addEventListener('activate', e => {
+  e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-      )
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
     )
   );
   self.clients.claim();
 });
 
-// Fetch: network-first for API calls, cache-first for static assets
-self.addEventListener('fetch', event => {
-  const { request } = event;
-  const url = new URL(request.url);
+self.addEventListener('fetch', e => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
 
-  // Skip non-GET and Supabase API calls (always fresh)
-  if (request.method !== 'GET' || url.hostname.includes('supabase')) {
-    return;
-  }
+  // Skip Supabase and external APIs
+  if (url.hostname.includes('supabase') || url.hostname.includes('googleapis') || url.hostname.includes('tailwindcss')) return;
 
-  // For HTML navigation — network first, fallback to cache
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then(response => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
-          return response;
+  // HTML navigation — network first, fallback to cached index
+  if (req.mode === 'navigate') {
+    e.respondWith(
+      fetch(req)
+        .then(res => {
+          if (res.ok) caches.open(CACHE).then(c => c.put(req, res.clone()));
+          return res;
         })
         .catch(() => caches.match('/index.html'))
     );
     return;
   }
 
-  // For static assets — cache first, network fallback
-  event.respondWith(
-    caches.match(request).then(cached => {
+  // Static assets — cache first
+  e.respondWith(
+    caches.match(req).then(cached => {
       if (cached) return cached;
-      return fetch(request).then(response => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+      return fetch(req).then(res => {
+        if (res.ok && res.type !== 'opaque') {
+          caches.open(CACHE).then(c => c.put(req, res.clone()));
         }
-        return response;
-      }).catch(() => new Response('Offline', { status: 503 }));
+        return res;
+      }).catch(() => new Response('', { status: 503 }));
     })
   );
-});
-
-// Background sync placeholder
-self.addEventListener('sync', event => {
-  if (event.tag === 'sync-logs') {
-    // Future: sync offline exercise logs
-  }
 });
