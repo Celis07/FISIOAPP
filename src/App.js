@@ -386,6 +386,103 @@ function SessionNotesView({patient,user}){
   );
 }
 
+
+// ─── EVOLUTION VIEW ───────────────────────────────────────────────────────────
+function EvolutionView({patient}){
+  const [ratings,setRatings]=useState([]);
+  const [notes,setNotes]=useState([]);
+  const [logs,setLogs]=useState([]);
+  const [loading,setLoad]=useState(true);
+
+  useEffect(()=>{
+    Promise.all([
+      supabase.from("session_ratings").select("*").eq("patient_id",patient.id).order("rated_at",{ascending:true}),
+      supabase.from("session_notes").select("*").eq("patient_id",patient.id).order("session_date",{ascending:true}),
+      supabase.from("exercise_logs").select("*").eq("patient_id",patient.id).order("completed_at",{ascending:true}),
+    ]).then(([{data:r},{data:n},{data:l}])=>{
+      setRatings(r||[]);setNotes(n||[]);setLogs(l||[]);setLoad(false);
+    });
+  },[patient.id]);
+
+  if(loading)return<Spinner/>;
+
+  // Build timeline — merge notes and ratings by date
+  const timeline=[];
+  const dMap={};
+  notes.forEach(n=>{const d=n.session_date;if(!dMap[d])dMap[d]={date:d,note:null,pain:null,fatigue:null,completed:0};dMap[d].note=n.note;});
+  ratings.forEach(r=>{const d=r.rated_at?.slice(0,10);if(!dMap[d])dMap[d]={date:d,note:null,pain:null,fatigue:null,completed:0};dMap[d].pain=r.pain_level;dMap[d].fatigue=r.fatigue_level;});
+  logs.forEach(l=>{const d=new Date(l.completed_at).toISOString().slice(0,10);if(!dMap[d])dMap[d]={date:d,note:null,pain:null,fatigue:null,completed:0};dMap[d].completed++;});
+  Object.values(dMap).sort((a,b)=>a.date>b.date?-1:1).forEach(e=>timeline.push(e));
+
+  const chartData=ratings.slice(-10);
+  const maxVal=10;
+  const chartH=80;
+
+  return(
+    <div>
+      {/* Pain/Fatigue chart */}
+      {chartData.length>0&&(
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:16,marginBottom:14}}>
+          <p style={{color:C.muted,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 4px"}}>Dolor y Fatiga · últimas sesiones</p>
+          <div style={{display:"flex",gap:12,marginBottom:10}}>
+            <span style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:C.danger}}><div style={{width:8,height:8,borderRadius:"50%",background:C.danger}}/> Dolor</span>
+            <span style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:C.warn}}><div style={{width:8,height:8,borderRadius:"50%",background:C.warn}}/> Fatiga</span>
+          </div>
+          <div style={{position:"relative",height:chartH+20}}>
+            {/* Grid lines */}
+            {[2,4,6,8,10].map(v=>(
+              <div key={v} style={{position:"absolute",left:0,right:0,bottom:20+(v/maxVal)*chartH,borderTop:`1px dashed ${C.border}`,display:"flex",alignItems:"center"}}>
+                <span style={{fontSize:9,color:C.dim,marginLeft:2,position:"absolute",left:0,transform:"translateY(-50%)"}}>{v}</span>
+              </div>
+            ))}
+            {/* Lines */}
+            <svg style={{position:"absolute",left:16,right:0,top:0,bottom:20,width:"calc(100% - 16px)",height:chartH+20}} preserveAspectRatio="none">
+              {/* Pain line */}
+              {chartData.length>1&&<polyline
+                points={chartData.map((r,i)=>`${(i/(chartData.length-1))*100}%,${chartH-(r.pain_level/maxVal)*chartH}`).join(" ")}
+                fill="none" stroke={C.danger} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>}
+              {/* Fatigue line */}
+              {chartData.length>1&&<polyline
+                points={chartData.map((r,i)=>`${(i/(chartData.length-1))*100}%,${chartH-(r.fatigue_level/maxVal)*chartH}`).join(" ")}
+                fill="none" stroke={C.warn} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 2"/>}
+              {/* Dots pain */}
+              {chartData.map((r,i)=><circle key={i} cx={`${(i/(Math.max(chartData.length-1,1)))*100}%`} cy={chartH-(r.pain_level/maxVal)*chartH} r="3" fill={C.danger}/>)}
+              {/* Dots fatigue */}
+              {chartData.map((r,i)=><circle key={i+"f"} cx={`${(i/(Math.max(chartData.length-1,1)))*100}%`} cy={chartH-(r.fatigue_level/maxVal)*chartH} r="3" fill={C.warn}/>)}
+            </svg>
+          </div>
+        </div>
+      )}
+
+      {/* Timeline */}
+      {timeline.length===0?(
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:32,textAlign:"center"}}>
+          <p style={{color:C.muted,fontSize:13}}>Sin registros de evolución aún</p>
+          <p style={{color:C.dim,fontSize:12,marginTop:6}}>Agrega notas de sesión y el paciente podrá registrar dolor/fatiga</p>
+        </div>
+      ):(
+        <div style={{display:"grid",gap:8}}>
+          {timeline.map((entry,i)=>(
+            <div key={i} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:entry.note?8:0}}>
+                <span style={{color:C.accentL,fontSize:12,fontWeight:600}}>
+                  {new Date(entry.date+"T12:00").toLocaleDateString("es-CO",{weekday:"short",day:"numeric",month:"short",year:"numeric"})}
+                </span>
+                <div style={{display:"flex",gap:10}}>
+                  {entry.completed>0&&<span style={{fontSize:11,color:C.success,fontWeight:600}}>{entry.completed} ejerc.</span>}
+                  {entry.pain&&<span style={{fontSize:11,color:C.danger}}>Dolor: <b>{entry.pain}/10</b></span>}
+                  {entry.fatigue&&<span style={{fontSize:11,color:C.warn}}>Fatiga: <b>{entry.fatigue}/10</b></span>}
+                </div>
+              </div>
+              {entry.note&&<p style={{color:C.text,fontSize:12,margin:0,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{entry.note}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── PATIENT PROFILE ─────────────────────────────────────────────────────────
 function PatientProfile({patient,user,onBack,onPrescribe,onApprove}){
   const [prescriptions,setPres]=useState([]);
@@ -455,10 +552,10 @@ function PatientProfile({patient,user,onBack,onPrescribe,onApprove}){
       </div>
 
       {/* Tabs */}
-      <div style={{display:"flex",gap:2,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:3,marginBottom:16}}>
-        {["plans","progress","notes"].map(t=>(
-          <button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"7px",borderRadius:9,border:"none",cursor:"pointer",fontWeight:600,fontSize:12,transition:"all .15s",background:activeTab===t?C.card:"transparent",color:activeTab===t?C.text:C.muted}}>
-            {t==="plans"?"Planes":t==="progress"?"Progreso":"Notas"}
+      <div style={{display:"flex",gap:2,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:3,marginBottom:16,overflowX:"auto"}}>
+        {["plans","progress","evolution","notes"].map(t=>(
+          <button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"7px",borderRadius:9,border:"none",cursor:"pointer",fontWeight:600,fontSize:11,transition:"all .15s",background:activeTab===t?C.card:"transparent",color:activeTab===t?C.text:C.muted,whiteSpace:"nowrap",minWidth:60}}>
+            {t==="plans"?"Planes":t==="progress"?"Progreso":t==="evolution"?"Evolución":"Notas"}
           </button>
         ))}
       </div>
@@ -563,6 +660,7 @@ function PatientProfile({patient,user,onBack,onPrescribe,onApprove}){
       )}
 
       {activeTab==="notes"&&<SessionNotesView patient={patient} user={user}/>}
+      {activeTab==="evolution"&&<EvolutionView patient={patient}/>}
     </div>
   );
 }
@@ -744,18 +842,79 @@ function PrescribeView({user,patient,onBack,existingPrescription}){
 
   const DURATIONS=[{days:7,l:"1 sem"},{days:14,l:"2 sem"},{days:21,l:"3 sem"},{days:30,l:"1 mes"},{days:45,l:"45d"},{days:60,l:"2 mes"},{days:90,l:"3 mes"}];
 
+  const [templates,setTemplates]=useState([]);
+  const [showTemplates,setShowTemplates]=useState(false);
+  const [savingTemplate,setSavingTemplate]=useState(false);
+  const [templateName,setTemplateName]=useState("");
+  const [showSaveTemplate,setShowSaveTemplate]=useState(false);
+
+  useEffect(()=>{
+    supabase.from("prescription_templates").select("*").eq("therapist_id",user.id).order("created_at",{ascending:false})
+      .then(({data})=>setTemplates(data||[]));
+  },[user.id]);
+
+  const saveTemplate=async()=>{
+    if(!templateName.trim())return;
+    setSavingTemplate(true);
+    const exs=BLOCKS.flatMap(b=>(selected[b]||[]).map(e=>({...e,block:b})));
+    await supabase.from("prescription_templates").insert({therapist_id:user.id,name:templateName.trim(),exercises:exs,note,duration_days:duration});
+    const{data}=await supabase.from("prescription_templates").select("*").eq("therapist_id",user.id).order("created_at",{ascending:false});
+    setTemplates(data||[]);
+    setTemplateName("");setShowSaveTemplate(false);setSavingTemplate(false);
+  };
+
+  const applyTemplate=(tpl)=>{
+    const newSel={"Terapia":[],"Calentamiento / Activación":[],"Trabajo central":[]};
+    (tpl.exercises||[]).forEach(ex=>{const b=ex.block||"Trabajo central";if(newSel[b])newSel[b].push({...ex});else newSel["Trabajo central"].push({...ex});});
+    setSel(newSel);
+    if(tpl.note)setNote(tpl.note);
+    if(tpl.duration_days)setDur(tpl.duration_days);
+    setShowTemplates(false);
+  };
+
+  const deleteTemplate=async(id)=>{
+    if(!window.confirm("¿Eliminar esta plantilla?"))return;
+    await supabase.from("prescription_templates").delete().eq("id",id);
+    setTemplates(prev=>prev.filter(t=>t.id!==id));
+  };
+
+  // Built-in warmup protocol
+  const WARMUP_PROTOCOL={
+    name:"Calentamiento general",
+    exercises:[
+      {id:90001,name:"Rotación de cadera en círculos",category:"Calentamiento",defaultSets:2,defaultReps:"10 c/lado",sets:2,reps:"10 c/lado",block:"Calentamiento / Activación",description:"Círculos amplios con la cadera"},
+      {id:90002,name:"Movilidad de columna torácica",category:"Calentamiento",defaultSets:2,defaultReps:"10",sets:2,reps:"10",block:"Calentamiento / Activación",description:"Rotaciones en cuadrupedia"},
+      {id:90003,name:"Activación de glúteo medio (clamshell)",category:"Calentamiento",defaultSets:3,defaultReps:"15 c/lado",sets:3,reps:"15 c/lado",block:"Calentamiento / Activación",description:"En decúbito lateral, abre la cadera"},
+      {id:90004,name:"Puente de glúteo isométrico",category:"Calentamiento",defaultSets:3,defaultReps:"12",sets:3,reps:"12",block:"Calentamiento / Activación",description:"Elevar cadera desde decúbito supino"},
+      {id:90005,name:"Rotación externa de hombro con banda",category:"Calentamiento",defaultSets:3,defaultReps:"15",sets:3,reps:"15",block:"Calentamiento / Activación",description:"Codo a 90°, rotación externa con banda elástica"},
+      {id:90006,name:"Retracción escapular",category:"Calentamiento",defaultSets:3,defaultReps:"12",sets:3,reps:"12",block:"Calentamiento / Activación",description:"Llevar escápulas hacia la columna"},
+      {id:90007,name:"Dead bug",category:"Core / Abdomen",defaultSets:3,defaultReps:"8 c/lado",sets:3,reps:"8 c/lado",block:"Trabajo central",description:"En decúbito supino, extender brazo y pierna opuestos"},
+      {id:90008,name:"Plancha abdominal",category:"Core / Abdomen",defaultSets:3,defaultReps:"30 seg",sets:3,reps:"30 seg",block:"Trabajo central",description:"Posición de plancha sobre antebrazos"},
+    ],
+    note:"Protocolo de calentamiento general: movilidad, activación glútea, cintura escapular y core.",
+    duration_days:30,
+  };
+
   const send=async()=>{
     const exs=BLOCKS.flatMap(b=>(selected[b]||[]).map(e=>({...e,block:b})));
     if(!exs.length)return;
     setLoad(true);
     const sd=localDateStr(new Date());
     const ed=localDateStr(new Date(Date.now()+duration*864e5));
+    const notifyPatient=async()=>{
+      try{
+        const{data:subs}=await supabase.from("push_subscriptions").select("subscription").eq("patient_id",patient.id);
+        if(!subs||!subs.length)return;
+        // Store a pending notification for the patient to pick up on next open
+        await supabase.from("notifications").insert({patient_id:patient.id,title:"Nuevo plan de ejercicios",body:`Tu fisioterapeuta ha actualizado tu plan. ¡A darle!`,read:false}).catch(()=>{});
+      }catch(e){}
+    };
     if(isEdit){
       const{error}=await supabase.from("prescriptions").update({exercises:exs,note,duration_days:duration,end_date:ed}).eq("id",existingPrescription.id);
-      if(!error)setDone(true);else alert("Error: "+error.message);
+      if(!error){setDone(true);notifyPatient();}else alert("Error: "+error.message);
     } else {
       const{error}=await supabase.from("prescriptions").insert({patient_id:patient.id,therapist_id:user.id,exercises:exs,note,duration_days:duration,start_date:sd,end_date:ed});
-      if(!error)setDone(true);else alert("Error: "+error.message);
+      if(!error){setDone(true);notifyPatient();}else alert("Error: "+error.message);
     }
     setLoad(false);
   };
@@ -799,7 +958,65 @@ function PrescribeView({user,patient,onBack,existingPrescription}){
         </Modal>
       )}
 
-      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,color:C.muted,background:"none",border:"none",cursor:"pointer",fontSize:13,marginBottom:16}}>{I.back} Volver</button>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,color:C.muted,background:"none",border:"none",cursor:"pointer",fontSize:13}}>{I.back} Volver</button>
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={()=>setShowTemplates(true)} variant="ghost" style={{fontSize:12}}>Plantillas</Btn>
+          {total>0&&<Btn onClick={()=>setShowSaveTemplate(true)} variant="subtle" style={{fontSize:12}}>Guardar como plantilla</Btn>}
+        </div>
+      </div>
+
+      {/* Templates modal */}
+      {showTemplates&&(
+        <Modal title="Plantillas de prescripción" onClose={()=>setShowTemplates(false)}>
+          {/* Built-in warmup */}
+          <div style={{marginBottom:14}}>
+            <p style={{color:C.muted,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 8px"}}>Protocolos base</p>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px"}}>
+              <div>
+                <p style={{color:C.text,fontWeight:600,fontSize:13,margin:0}}>Calentamiento general</p>
+                <p style={{color:C.muted,fontSize:11,margin:"2px 0 0"}}>Movilidad · Glúteo · Escapular · Core · 8 ejercicios</p>
+              </div>
+              <Btn onClick={()=>applyTemplate(WARMUP_PROTOCOL)} variant="primary" style={{fontSize:12}}>Aplicar</Btn>
+            </div>
+          </div>
+
+          {/* User templates */}
+          {templates.length>0&&(
+            <div>
+              <p style={{color:C.muted,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 8px"}}>Mis plantillas</p>
+              <div style={{display:"grid",gap:6}}>
+                {templates.map(t=>(
+                  <div key={t.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px"}}>
+                    <div>
+                      <p style={{color:C.text,fontWeight:600,fontSize:13,margin:0}}>{t.name}</p>
+                      <p style={{color:C.muted,fontSize:11,margin:"2px 0 0"}}>{(t.exercises||[]).length} ejercicios · {t.duration_days}d</p>
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <Btn onClick={()=>applyTemplate(t)} variant="primary" style={{fontSize:12}}>Aplicar</Btn>
+                      <button onClick={()=>deleteTemplate(t.id)} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",display:"flex"}}>{I.trash}</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {templates.length===0&&<p style={{color:C.muted,fontSize:13,textAlign:"center",padding:"8px 0"}}>Guarda un plan como plantilla para verlo aquí</p>}
+        </Modal>
+      )}
+
+      {/* Save as template modal */}
+      {showSaveTemplate&&(
+        <Modal title="Guardar como plantilla" onClose={()=>setShowSaveTemplate(false)} maxWidth={360}>
+          <p style={{color:C.muted,fontSize:13,marginBottom:14}}>Guarda este plan ({total} ejercicios) como plantilla reutilizable.</p>
+          <input value={templateName} onChange={e=>setTemplateName(e.target.value)} placeholder="Nombre de la plantilla" style={{...inp,marginBottom:14}}
+            onKeyDown={e=>e.key==="Enter"&&saveTemplate()}/>
+          <div style={{display:"flex",gap:10}}>
+            <Btn onClick={saveTemplate} disabled={!templateName.trim()||savingTemplate} variant="primary" style={{flex:1}}>{savingTemplate?"Guardando...":"Guardar"}</Btn>
+            <Btn onClick={()=>setShowSaveTemplate(false)} variant="ghost">Cancelar</Btn>
+          </div>
+        </Modal>
+      )}
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:20}}>
         {/* LEFT: Library */}
