@@ -1,561 +1,889 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 import { EXERCISES, CATEGORIES } from "./exercises";
 import PatientApp from "./PatientApp";
 
-// ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
+// ─── TOKENS ──────────────────────────────────────────────────────────────────
 const C = {
-  bg:      "#0f1117",
-  surface: "#1a1d27",
-  card:    "#21253a",
-  cardHov: "#262b42",
-  border:  "#2d3348",
+  bg:      "#09090f",
+  surface: "#111118",
+  card:    "#18181f",
+  border:  "#242433",
   accent:  "#26a69a",
-  accentL: "#80cbc4",
-  text:    "#e2e8f0",
-  muted:   "#8892a4",
-  dim:     "#4a5270",
-  danger:  "#f87171",
+  accentL: "#4db6ac",
+  accentG: "linear-gradient(135deg,#26a69a,#00897b)",
+  text:    "#e2e8f4",
+  muted:   "#6b7390",
+  dim:     "#383d52",
+  success: "#4caf79",
+  warn:    "#e09c3a",
+  danger:  "#e05252",
 };
 
 const BLOCKS = ["Terapia","Calentamiento / Activación","Trabajo central"];
-const BLOCK_META = {
-  "Terapia":                { color:"#f87171", bg:"rgba(248,113,113,0.12)", icon:"T" },
-  "Calentamiento / Activación": { color:"#fbbf24", bg:"rgba(251,191,36,0.12)",  icon:"C" },
-  "Trabajo central":        { color:"#34d399", bg:"rgba(52,211,153,0.12)",  icon:"W" },
-  "Sin bloque":             { color:"#8892a4", bg:"rgba(136,146,164,0.1)",  icon:"G" },
+const BM = {
+  "Terapia":                    {c:"#e05252",bg:"rgba(224,82,82,0.08)"},
+  "Calentamiento / Activación": {c:"#e09c3a",bg:"rgba(224,156,58,0.08)"},
+  "Trabajo central":            {c:"#4caf79",bg:"rgba(76,175,121,0.08)"},
+  "Sin bloque":                 {c:"#6b7390",bg:"rgba(107,115,144,0.06)"},
 };
 
-const inp = { background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:"10px 14px", fontSize:14, color:C.text, outline:"none", width:"100%" };
+function localDateStr(d){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0");return`${y}-${m}-${dd}`;}
+function daysLeft(end){return Math.ceil((new Date(end)-new Date())/(864e5));}
+function Spinner(){return<div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:48}}><div style={{width:24,height:24,border:`2px solid ${C.accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div>;}
+function Avatar({name,size=36}){const i=(name||"?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase();return<div style={{width:size,height:size,borderRadius:size*.28,background:C.accentG,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:size*.38,flexShrink:0}}>{i}</div>;}
 
-function Avatar({ name, size=40 }) {
-  const initials = name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase();
-  return (
-    <div style={{ width:size, height:size, borderRadius:size/3.5, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontWeight:700, fontSize:size/3.2, flexShrink:0 }}>
-      {initials}
-    </div>
-  );
-}
-
-
-
-// SVG Icons
-const Icon = {
-  patients: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>,
-  agenda:   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
-  messages: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>,
-  payments: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
-  dashboard:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
-  logout:   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
-  collapse: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 19l-7-7 7-7M19 19l-7-7 7-7"/></svg>,
-  copy:     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>,
-  send:     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{transform:"rotate(90deg)"}}><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>,
-  link:     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>,
-  plus:     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
-  search:   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>,
-  back:     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>,
-  trash:    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>,
-  edit:     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
-  video:    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>,
+const I={
+  dash:   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
+  pts:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>,
+  cal:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  msg:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>,
+  out:    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+  back:   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>,
+  plus:   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+  search: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>,
+  edit:   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+  trash:  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>,
+  link:   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>,
+  dots:   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>,
+  down:   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>,
+  pdf:    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  copy:   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>,
+  send:   <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style={{transform:"rotate(90deg)"}}><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>,
 };
 
-
-// ─── PAYMENT INFO ─────────────────────────────────────────────────────────────
-const PAYMENT_INFO = {
-  bank:   "Bancolombia",
-  type:   "Cuenta de Ahorros",
-  number: "316 50472414",
-  holder: "Manuel Celis",
-  nequi:  "",
-  alias:  "",
-};
-function Spinner() {
-  return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:48 }}>
-      <div style={{ width:32, height:32, border:`3px solid ${C.accent}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 1s linear infinite" }}/>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  );
-}
-
-
-// Format date as local YYYY-MM-DD (avoids UTC offset bug)
-function localDateStr(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth()+1).padStart(2,'0');
-  const d = String(date.getDate()).padStart(2,'0');
-  return `${y}-${m}-${d}`;
-}
-
-// ─── LOGIN ──────────────────────────────────────────────────────────────────
-function LoginView() {
-  const [email,setEmail]       = useState("");
-  const [pass,setPass]         = useState("");
-  const [name,setName]         = useState("");
-  const [isReg,setIsReg]       = useState(false);
-  const [isForgot,setIsForgot] = useState(false);
-  const [loading,setLoading]   = useState(false);
-  const [error,setError]       = useState("");
-  const [success,setSuccess]   = useState("");
-
-  const handleForgot = async () => {
-    if(!email.trim()) { setError("Ingresa tu correo electrónico"); return; }
-    setLoading(true); setError(""); setSuccess("");
-    const {error} = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: window.location.origin,
-    });
-    if(error) setError(error.message);
-    else setSuccess("Te enviamos un correo con el link para restablecer tu contraseña.");
-    setLoading(false);
+// ─── SMALL SHARED UI ─────────────────────────────────────────────────────────
+const inp = {background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"9px 13px",fontSize:13,color:C.text,outline:"none",width:"100%"};
+const Btn = ({children,onClick,variant="ghost",disabled,style={}})=>{
+  const base={border:"none",borderRadius:9,padding:"7px 14px",fontSize:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,transition:"opacity .15s",...style};
+  const v={
+    primary:{...base,background:C.accentG,color:"#fff"},
+    danger: {...base,background:"rgba(224,82,82,.12)",border:`1px solid rgba(224,82,82,.25)`,color:C.danger},
+    ghost:  {...base,background:"transparent",border:`1px solid ${C.border}`,color:C.muted},
+    subtle: {...base,background:C.card,border:`1px solid ${C.border}`,color:C.muted},
   };
+  return <button onClick={onClick} disabled={disabled} style={v[variant]||v.ghost}>{children}</button>;
+};
 
-  const handle = async () => {
-    setLoading(true); setError("");
-    if(isReg) {
-      if(!name.trim()) { setError("Ingresa tu nombre completo"); setLoading(false); return; }
-      const {data, error} = await supabase.auth.signUp({
-        email, password:pass,
-        options:{ data:{ full_name: name.trim() } }
-      });
-      if(error) setError(error.message);
-    } else {
-      const {error} = await supabase.auth.signInWithPassword({email,password:pass});
-      if(error) setError(error.message);
-    }
-    setLoading(false);
-  };
-
-  const inp2 = { background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", fontSize:14, color:C.text, outline:"none", width:"100%" };
-
-  // ── Forgot password screen
-  if(isForgot) return (
-    <div style={{ minHeight:"100vh", background:`radial-gradient(ellipse at top,#0d2020 0%,${C.bg} 60%)`, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-      <div style={{ width:"100%", maxWidth:380 }}>
-        <div style={{ textAlign:"center", marginBottom:28 }}>
-          <div style={{ width:52, height:52, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, borderRadius:16, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px", boxShadow:`0 0 32px rgba(38,166,154,0.3)` }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-          </div>
-          <h1 style={{ fontFamily:"'Fraunces',serif", fontSize:"1.6rem", color:C.text, margin:0 }}>FisioApp</h1>
+// Dropdown menu
+function Menu({items}){
+  const [open,setOpen]=useState(false);
+  const ref=useRef();
+  useEffect(()=>{
+    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    document.addEventListener("mousedown",h);
+    return()=>document.removeEventListener("mousedown",h);
+  },[]);
+  return(
+    <div ref={ref} style={{position:"relative"}}>
+      <button onClick={e=>{e.stopPropagation();setOpen(!open);}} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,padding:"5px 8px",color:C.muted,cursor:"pointer",display:"flex",alignItems:"center"}}>
+        {I.dots}
+      </button>
+      {open&&(
+        <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:4,zIndex:50,minWidth:160,boxShadow:"0 8px 32px rgba(0,0,0,.6)"}}>
+          {items.map((item,i)=>item==="---"?(
+            <div key={i} style={{height:1,background:C.border,margin:"4px 0"}}/>
+          ):(
+            <button key={i} onClick={e=>{e.stopPropagation();setOpen(false);item.action();}}
+              style={{width:"100%",display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"transparent",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,color:item.danger?C.danger:C.text,fontWeight:item.danger?600:400,textAlign:"left"}}>
+              {item.icon&&<span style={{color:item.danger?C.danger:C.muted,flexShrink:0}}>{item.icon}</span>}
+              {item.label}
+            </button>
+          ))}
         </div>
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:"22px 20px" }}>
-          <h2 style={{ color:C.text, fontSize:"1rem", fontWeight:700, margin:"0 0 6px" }}>Recuperar contraseña</h2>
-          <p style={{ color:C.muted, fontSize:"0.85rem", margin:"0 0 16px", lineHeight:1.5 }}>
-            Ingresa tu correo y te enviaremos un link para crear una nueva contraseña.
-          </p>
-          {!success ? (
-            <>
-              <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Correo electrónico" type="email"
-                style={{...inp2, marginBottom:12}} onKeyDown={e=>e.key==="Enter"&&handleForgot()}/>
-              {error && <div style={{ background:"rgba(239,83,80,0.1)", border:"1px solid rgba(239,83,80,0.3)", borderRadius:10, padding:"8px 12px", color:C.danger, fontSize:13, marginBottom:12 }}>{error}</div>}
-              <button onClick={handleForgot} disabled={loading}
-                style={{ width:"100%", background:C.accentG, border:"none", borderRadius:12, padding:12, color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", opacity:loading?0.7:1, marginBottom:12 }}>
-                {loading?"Enviando...":"Enviar link de recuperación"}
-              </button>
-            </>
-          ) : (
-            <div style={{ background:"rgba(102,187,106,0.1)", border:"1px solid rgba(102,187,106,0.3)", borderRadius:12, padding:"12px 14px", marginBottom:16 }}>
-              <p style={{ color:C.success, fontSize:14, margin:0, lineHeight:1.6 }}>✓ {success}</p>
-            </div>
-          )}
-          <button onClick={()=>{ setIsForgot(false); setError(""); setSuccess(""); }}
-            style={{ width:"100%", background:"transparent", border:`1px solid ${C.border}`, borderRadius:12, padding:11, color:C.muted, cursor:"pointer", fontSize:14 }}>
-            Volver al inicio de sesión
+      )}
+    </div>
+  );
+}
+
+// Modal wrapper
+function Modal({title,onClose,children,maxWidth=480}){
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={onClose}>
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:18,padding:24,width:"100%",maxWidth,maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
+          <h3 style={{color:C.text,fontWeight:700,fontSize:16,margin:0}}>{title}</h3>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:18,lineHeight:1,padding:4}}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Tag / badge
+function Tag({label,color}){
+  return<span style={{fontSize:11,fontWeight:600,color,background:`${color}18`,border:`1px solid ${color}30`,borderRadius:6,padding:"2px 8px",whiteSpace:"nowrap"}}>{label}</span>;
+}
+
+// ─── PDF EXPORT ───────────────────────────────────────────────────────────────
+function exportPDF(patient,pres){
+  if(!pres)return;
+  const blocks={};
+  (pres.exercises||[]).forEach(ex=>{const b=ex.block||"Sin bloque";if(!blocks[b])blocks[b]=[];blocks[b].push(ex);});
+  const bOrder=["Terapia","Calentamiento / Activación","Trabajo central","Sin bloque"];
+  const bCol={"Terapia":"#e05252","Calentamiento / Activación":"#e09c3a","Trabajo central":"#4caf79","Sin bloque":"#6b7390"};
+  const date=new Date(pres.created_at).toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"});
+  let html=`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><title>Plan – ${patient.name}</title>
+  <style>*{font-family:'Inter',-apple-system,sans-serif;box-sizing:border-box;margin:0;padding:0}body{background:#fff;color:#111;padding:32px;max-width:760px;margin:0 auto}.header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:18px;border-bottom:2px solid #26a69a;margin-bottom:22px}.logo{font-size:20px;font-weight:800;color:#26a69a}.pt-name{font-size:22px;font-weight:700}.meta{text-align:right;font-size:12px;color:#666}.block-label{display:flex;align-items:center;gap:6px;margin:18px 0 8px;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.8px}.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}.row{display:flex;justify-content:space-between;align-items:center;padding:9px 13px;background:#f8f9fa;border-radius:7px;margin-bottom:5px}.rname{font-weight:600;font-size:13px}.rdose{font-weight:700;color:#26a69a;font-size:13px}.note{background:#e8f5e9;border-left:3px solid #26a69a;padding:10px 14px;border-radius:6px;margin-bottom:16px;font-size:13px;color:#1b5e20}.footer{margin-top:28px;padding-top:14px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:11px;color:#aaa}@media print{body{padding:20px}}</style></head><body>
+  <div class="header"><div><div class="logo">FisioApp</div><div class="pt-name" style="margin-top:8px">${patient.name}</div><div style="font-size:13px;color:#666;margin-top:2px">${patient.condition||""}</div></div><div class="meta"><b>Plan de ejercicios</b><br/>${date}<br/>${pres.exercises?.length||0} ejercicios${pres.duration_days?`<br/>${pres.duration_days} días`:""}</div></div>
+  ${pres.note?`<div class="note">${pres.note}</div>`:""}`;
+  bOrder.forEach(b=>{const l=blocks[b];if(!l?.length)return;html+=`<div class="block-label"><div class="dot" style="background:${bCol[b]||"#aaa"}"></div><span style="color:${bCol[b]||"#aaa"}">${b}</span></div>`;l.forEach(ex=>{html+=`<div class="row"><div><div class="rname">${ex.name}</div>${ex.description?`<div style="font-size:11px;color:#888;margin-top:2px">${ex.description}</div>`:""}</div><div class="rdose">${ex.sets}×${ex.reps}</div></div>`;});});
+  html+=`<div class="footer"><span>FisioApp</span><span>${new Date().toLocaleDateString("es-CO")}</span></div></body></html>`;
+  const w=window.open("","_blank");w.document.write(html);w.document.close();setTimeout(()=>w.print(),500);
+}
+
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
+function LoginView(){
+  const [email,setEmail]=useState("");
+  const [pass,setPass]=useState("");
+  const [name,setName]=useState("");
+  const [mode,setMode]=useState("login"); // login | register | forgot
+  const [loading,setLoad]=useState(false);
+  const [error,setError]=useState("");
+  const [ok,setOk]=useState("");
+
+  const submit=async()=>{
+    setLoad(true);setError("");setOk("");
+    if(mode==="forgot"){
+      const{error}=await supabase.auth.resetPasswordForEmail(email.trim(),{redirectTo:window.location.origin});
+      if(error)setError(error.message);else setOk("Link enviado — revisa tu correo.");
+    } else if(mode==="register"){
+      if(!name.trim()){setError("Ingresa tu nombre");setLoad(false);return;}
+      const{error}=await supabase.auth.signUp({email,password:pass,options:{data:{full_name:name.trim()}}});
+      if(error)setError(error.message);
+    } else {
+      const{error}=await supabase.auth.signInWithPassword({email,password:pass});
+      if(error)setError(error.message);
+    }
+    setLoad(false);
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{width:"100%",maxWidth:360}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{width:44,height:44,background:C.accentG,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",boxShadow:"0 0 28px rgba(38,166,154,.3)"}}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </div>
+          <h1 style={{fontFamily:"'Fraunces',serif",fontSize:"1.6rem",color:C.text,margin:0}}>FisioApp</h1>
+        </div>
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:"22px 20px"}}>
+          <p style={{color:C.muted,fontSize:13,margin:"0 0 16px",fontWeight:500}}>{mode==="login"?"Iniciar sesión":mode==="register"?"Crear cuenta":"Recuperar contraseña"}</p>
+          <div style={{display:"grid",gap:9,marginBottom:14}}>
+            {mode==="register"&&<input value={name} onChange={e=>setName(e.target.value)} placeholder="Nombre completo" style={inp}/>}
+            <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Correo" type="email" style={inp}/>
+            {mode!=="forgot"&&<input value={pass} onChange={e=>setPass(e.target.value)} placeholder="Contraseña" type="password" style={inp} onKeyDown={e=>e.key==="Enter"&&submit()}/>}
+          </div>
+          {error&&<p style={{color:C.danger,fontSize:12,marginBottom:12,background:"rgba(224,82,82,.08)",padding:"7px 10px",borderRadius:8,border:"1px solid rgba(224,82,82,.2)"}}>{error}</p>}
+          {ok&&<p style={{color:C.success,fontSize:12,marginBottom:12,background:"rgba(76,175,121,.08)",padding:"7px 10px",borderRadius:8}}>{ok}</p>}
+          <button onClick={submit} disabled={loading} style={{width:"100%",background:C.accentG,border:"none",borderRadius:10,padding:11,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer",opacity:loading?.7:1,marginBottom:14}}>
+            {loading?"...":mode==="login"?"Entrar":mode==="register"?"Crear cuenta":"Enviar link"}
           </button>
+          <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:6}}>
+            {mode!=="login"?<button onClick={()=>{setMode("login");setError("");setOk("");}} style={{background:"none",border:"none",color:C.accent,cursor:"pointer",fontSize:12,fontWeight:600}}>← Iniciar sesión</button>
+            :<>
+              <button onClick={()=>{setMode("register");setError("");}} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12}}>¿Sin cuenta? Regístrate</button>
+              <button onClick={()=>{setMode("forgot");setError("");}} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:12}}>¿Olvidaste tu contraseña?</button>
+            </>}
+          </div>
         </div>
       </div>
     </div>
   );
+}
 
-  return (
-    <div style={{ minHeight:"100vh", background:`radial-gradient(ellipse at top,#0d2020 0%,${C.bg} 60%)`, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-      <div style={{ width:"100%", maxWidth:380 }}>
-        <div style={{ textAlign:"center", marginBottom:28 }}>
-          <div style={{ width:52, height:52, background:C.accentG, borderRadius:16, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px", boxShadow:`0 0 32px rgba(38,166,154,0.3)` }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-          </div>
-          <h1 style={{ fontFamily:"'Fraunces',serif", fontSize:"1.7rem", color:C.text, margin:0 }}>FisioApp</h1>
-          <p style={{ color:C.muted, fontSize:"0.85rem", marginTop:5 }}>Tu plataforma de fisioterapia</p>
+// ─── PENDING ──────────────────────────────────────────────────────────────────
+function PendingApproval({user}){
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:"28px 24px",textAlign:"center",maxWidth:320,width:"100%"}}>
+        <div style={{width:44,height:44,background:"rgba(224,156,58,.1)",border:"1px solid rgba(224,156,58,.25)",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.warn} strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:"22px 20px" }}>
-          <h2 style={{ color:C.text, fontSize:"1rem", fontWeight:600, margin:"0 0 16px" }}>
-            {isReg?"Crear cuenta":"Iniciar sesión"}
-          </h2>
-          <div style={{ display:"grid", gap:11, marginBottom:14 }}>
-            {isReg && (
-              <input value={name} onChange={e=>setName(e.target.value)} placeholder="Nombre completo *" type="text" style={inp2}/>
-            )}
-            <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Correo electrónico" type="email" style={inp2}/>
-            <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="Contraseña" type="password" style={inp2}
-              onKeyDown={e=>e.key==="Enter"&&handle()}/>
-          </div>
-          {error && <div style={{ background:"rgba(239,83,80,0.1)", border:"1px solid rgba(239,83,80,0.3)", borderRadius:10, padding:"8px 12px", color:C.danger, fontSize:13, marginBottom:12 }}>{error}</div>}
-          <button onClick={handle} disabled={loading}
-            style={{ width:"100%", background:C.accentG, border:"none", borderRadius:12, padding:12, color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", opacity:loading?0.7:1, boxShadow:`0 4px 20px rgba(38,166,154,0.25)`, marginBottom:12 }}>
-            {loading?"Cargando...":isReg?"Crear cuenta":"Entrar"}
-          </button>
-          {!isReg && (
-            <button onClick={()=>{ setIsForgot(true); setError(""); }}
-              style={{ width:"100%", background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:"0.85rem", marginBottom:8, padding:"2px 0" }}>
-              ¿Olvidaste tu contraseña?
-            </button>
-          )}
-          <p style={{ textAlign:"center", color:C.muted, fontSize:"0.85rem", margin:0 }}>
-            {isReg?"¿Ya tienes cuenta?":"¿No tienes cuenta?"}{" "}
-            <button onClick={()=>{ setIsReg(!isReg); setError(""); setName(""); }}
-              style={{ color:C.accent, background:"none", border:"none", cursor:"pointer", fontWeight:600 }}>
-              {isReg?"Inicia sesión":"Regístrate"}
-            </button>
-          </p>
-        </div>
+        <h2 style={{color:C.text,fontSize:17,fontWeight:700,margin:"0 0 8px"}}>Acceso pendiente</h2>
+        <p style={{color:C.muted,fontSize:13,lineHeight:1.6,margin:"0 0 20px"}}>Tu fisioterapeuta debe aprobarte. Cuando esté listo podrás ver tu plan.</p>
+        <p style={{color:C.dim,fontSize:12,marginBottom:16}}>{user.email}</p>
+        <Btn onClick={()=>supabase.auth.signOut()} variant="ghost" style={{width:"100%"}}>Cerrar sesión</Btn>
       </div>
     </div>
   );
 }
 
 // ─── INVITE MODAL ─────────────────────────────────────────────────────────────
-function InviteModal({ patient, onClose }) {
-  const [copied,setCopied] = useState(false);
-  const link = `${window.location.origin}?invite=${patient.invite_token}`;
-  const copy = () => { navigator.clipboard.writeText(link); setCopied(true); setTimeout(()=>setCopied(false),2000); };
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:50, display:"flex", alignItems:"flex-end", justifyContent:"center", padding:16 }}>
-      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:24, padding:24, width:"100%", maxWidth:400 }}>
-        <div style={{ textAlign:"center", marginBottom:20 }}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.5" style={{marginBottom:10}}><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-          <h3 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:20, margin:0 }}>Link de invitación</h3>
-          <p style={{ color:C.muted, fontSize:14, marginTop:6 }}>Envíale este link a <strong style={{color:C.text}}>{patient.name}</strong></p>
+function InviteModal({patient,onClose}){
+  const [copied,setCopied]=useState(false);
+  const link=`${window.location.origin}?invite=${patient.invite_token}`;
+  const copy=()=>{navigator.clipboard.writeText(link);setCopied(true);setTimeout(()=>setCopied(false),2000);};
+  return(
+    <Modal title="Link de invitación" onClose={onClose} maxWidth={400}>
+      <p style={{color:C.muted,fontSize:13,marginBottom:14,lineHeight:1.6}}>Comparte este link con <strong style={{color:C.text}}>{patient.name}</strong> para que pueda crear su cuenta y acceder a su plan.</p>
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 13px",fontSize:12,color:C.muted,wordBreak:"break-all",marginBottom:14}}>{link}</div>
+      <Btn onClick={copy} variant="primary" style={{width:"100%"}}>{I.copy} {copied?"¡Copiado!":"Copiar link"}</Btn>
+    </Modal>
+  );
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+function DashboardView({user,onNavigate}){
+  const [d,setD]=useState(null);
+  useEffect(()=>{load();},[]);
+  const load=async()=>{
+    const in7=new Date(Date.now()+7*864e5).toISOString().split("T")[0];
+    const[{data:p},{data:a},{data:m},{data:r},{data:exp}]=await Promise.all([
+      supabase.from("patients").select("*"),
+      supabase.from("appointments").select("*").gte("date",localDateStr(new Date())).order("date").limit(5),
+      supabase.from("messages").select("id").eq("unread",true),
+      supabase.from("access_requests").select("*").order("created_at",{ascending:false}).then(x=>x.error?{data:[]}:x),
+      supabase.from("prescriptions").select("*,patients(name)").lte("end_date",in7).gte("end_date",localDateStr(new Date())).then(x=>x.error?{data:[]}:x),
+    ]);
+    const pts=p||[];
+    setD({patients:pts.length,active:pts.filter(x=>x.invite_status==="aprobado").length,pending:pts.filter(x=>x.invite_status==="pendiente").length,appts:(a||[]),msgs:(m||[]).length,recent:pts.slice(0,4),requests:r||[],expiring:exp||[]});
+  };
+  const approve=async(req)=>{
+    const meta=req.display_name||req.email.split("@")[0];
+    await supabase.from("patients").insert({name:meta,email:req.email,therapist_id:user.id,user_id:req.user_id,invite_status:"aprobado",invite_token:crypto.randomUUID()});
+    await supabase.from("access_requests").delete().eq("id",req.id);
+    load();
+  };
+  const reject=async(id)=>{await supabase.from("access_requests").delete().eq("id",id);load();};
+
+  if(!d)return<Spinner/>;
+  const today=new Date().toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long"});
+
+  return(
+    <div style={{maxWidth:860}}>
+      <div style={{marginBottom:24}}>
+        <p style={{color:C.muted,fontSize:12,margin:"0 0 2px",textTransform:"capitalize"}}>{today}</p>
+        <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:22,margin:0}}>Panel de control</h2>
+      </div>
+
+      {/* Access requests */}
+      {d.requests.length>0&&(
+        <div style={{background:"rgba(224,156,58,.06)",border:"1px solid rgba(224,156,58,.2)",borderRadius:14,padding:"14px 16px",marginBottom:16}}>
+          <p style={{color:C.warn,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 10px"}}>Solicitudes de acceso · {d.requests.length}</p>
+          <div style={{display:"grid",gap:8}}>
+            {d.requests.map(r=>(
+              <div key={r.id} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(0,0,0,.2)",borderRadius:9,padding:"8px 12px"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{color:C.text,fontSize:13,fontWeight:600,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.display_name||r.email.split("@")[0]}</p>
+                  <p style={{color:C.dim,fontSize:11,margin:"1px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.email}</p>
+                </div>
+                <Btn onClick={()=>approve(r)} variant="primary" style={{fontSize:12,padding:"5px 12px"}}>Aprobar</Btn>
+                <button onClick={()=>reject(r.id)} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",padding:4,display:"flex"}}>✕</button>
+              </div>
+            ))}
+          </div>
         </div>
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:14, marginBottom:16, wordBreak:"break-all", fontSize:12, color:C.muted, fontFamily:"monospace" }}>{link}</div>
-        <div style={{ display:"grid", gap:10 }}>
-          <button onClick={copy} style={{ background:copied?"#34d399":`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:14, padding:13, color:"#fff", fontWeight:700, cursor:"pointer", fontSize:15 }}>{copied?"✓ ¡Copiado!":"Copiar link"}</button>
-          <button onClick={onClose} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:13, color:C.muted, cursor:"pointer", fontSize:14 }}>Cerrar</button>
+      )}
+
+      {/* Expiring plans */}
+      {d.expiring.length>0&&(
+        <div style={{background:"rgba(224,82,82,.05)",border:"1px solid rgba(224,82,82,.2)",borderRadius:14,padding:"12px 16px",marginBottom:16}}>
+          <p style={{color:C.danger,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 8px"}}>Planes por vencer · {d.expiring.length}</p>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {d.expiring.map(p=>{const dl=daysLeft(p.end_date);return<span key={p.id} style={{fontSize:12,color:C.muted,background:C.card,border:`1px solid ${C.border}`,borderRadius:7,padding:"3px 10px"}}>{p.patients?.name} — <span style={{color:dl===0?C.danger:C.warn,fontWeight:600}}>{dl===0?"hoy":`${dl}d`}</span></span>;})}
+          </div>
+        </div>
+      )}
+
+      {/* Stat row */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
+        {[
+          {n:d.patients,  l:"Pacientes",  sub:`${d.active} activos`,  c:C.accent,  tab:"patients"},
+          {n:d.pending,   l:"Pendientes", sub:"por aprobar",          c:C.warn,    tab:"patients",filter:"pendiente"},
+          {n:d.appts.length,l:"Citas",    sub:"próximas",             c:"#7c6af7", tab:"agenda"},
+          {n:d.msgs,      l:"Mensajes",   sub:"sin leer",             c:"#4a9eff", tab:"messages"},
+        ].map((s,i)=>(
+          <div key={i} onClick={()=>onNavigate(s.tab,null,s.filter)}
+            style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",cursor:"pointer",transition:"border-color .15s"}}
+            onMouseEnter={e=>e.currentTarget.style.borderColor=s.c+"44"}
+            onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+            <p style={{color:s.c,fontSize:26,fontWeight:700,margin:0,fontFamily:"'Fraunces',serif",lineHeight:1}}>{s.n}</p>
+            <p style={{color:C.text,fontSize:12,fontWeight:600,margin:"5px 0 1px"}}>{s.l}</p>
+            <p style={{color:C.muted,fontSize:11,margin:0}}>{s.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Two-col */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12}}>
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px",overflow:"hidden"}}>
+          <p style={{color:C.muted,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 12px"}}>Próximas citas</p>
+          {d.appts.length===0?<p style={{color:C.dim,fontSize:13,textAlign:"center",padding:"8px 0"}}>Sin citas</p>:d.appts.map(a=>(
+            <div key={a.id} style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
+              <div style={{background:"rgba(38,166,154,.1)",border:"1px solid rgba(38,166,154,.15)",borderRadius:8,padding:"3px 8px",minWidth:50,textAlign:"center",flexShrink:0}}>
+                <p style={{color:C.accent,fontWeight:700,fontSize:12,margin:0}}>{a.time}</p>
+                <p style={{color:C.muted,fontSize:10,margin:0}}>{a.date?.slice(5)}</p>
+              </div>
+              <div style={{minWidth:0}}>
+                <p style={{color:C.text,fontWeight:600,fontSize:12,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.patient_name}</p>
+                <p style={{color:C.dim,fontSize:11,margin:"1px 0 0"}}>{a.type}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px",overflow:"hidden"}}>
+          <p style={{color:C.muted,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 12px"}}>Pacientes recientes</p>
+          {d.recent.map(p=>(
+            <div key={p.id} onClick={()=>onNavigate("patients",p)}
+              style={{display:"flex",gap:10,alignItems:"center",marginBottom:10,cursor:"pointer",borderRadius:8,padding:"2px 0",transition:"opacity .15s"}}
+              onMouseEnter={e=>e.currentTarget.style.opacity=".7"}
+              onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+              <Avatar name={p.name} size={28}/>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{color:C.text,fontWeight:600,fontSize:12,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</p>
+                <p style={{color:C.muted,fontSize:11,margin:"1px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.condition||"Sin diagnóstico"}</p>
+              </div>
+              {p.invite_status==="pendiente"&&<Tag label="Pendiente" color={C.warn}/>}
+              {p.invite_status==="aprobado"&&<Tag label="Activo" color={C.success}/>}
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── PRESCRIBE / EDIT ────────────────────────────────────────────────────────
-function PrescribeView({ user, patient, onBack, existingPrescription }) {
-  const isEdit = !!existingPrescription;
+// ─── SESSION NOTES ────────────────────────────────────────────────────────────
+function SessionNotesView({patient,user}){
+  const [notes,setNotes]=useState([]);
+  const [loading,setLoad]=useState(true);
+  const [text,setText]=useState("");
+  const [date,setDate]=useState(localDateStr(new Date()));
+  const [saving,setSave]=useState(false);
 
-  const initBlocks = () => {
-    const s = { "Terapia":[], "Calentamiento / Activación":[], "Trabajo central":[] };
-    if(isEdit) {
-      (existingPrescription.exercises||[]).forEach(ex=>{
-        const b = ex.block||"Trabajo central";
-        if(s[b]) s[b].push({...ex});
-        else s["Trabajo central"].push({...ex});
-      });
-    }
-    return s;
-  };
+  useEffect(()=>{load();},[patient.id]);
+  const load=async()=>{const{data}=await supabase.from("session_notes").select("*").eq("patient_id",patient.id).order("session_date",{ascending:false});setNotes(data||[]);setLoad(false);};
+  const save=async()=>{if(!text.trim())return;setSave(true);await supabase.from("session_notes").insert({therapist_id:user.id,patient_id:patient.id,note:text.trim(),session_date:date});setText("");setSave(false);load();};
+  const del=async(id)=>{if(!window.confirm("¿Eliminar nota?"))return;await supabase.from("session_notes").delete().eq("id",id);load();};
 
-  const [selected,setSelected]     = useState(initBlocks);
-  const [note,setNote]             = useState(existingPrescription?.note||"");
-  const [duration,setDuration]     = useState(existingPrescription?.duration_days||30);
-  const [activeBlock,setActiveBlock]= useState("Trabajo central");
-  const [search,setSearch]         = useState("");
-  const [category,setCategory]     = useState("Todos");
-  const [submitted,setSubmitted]   = useState(false);
-  const [loading,setLoading]       = useState(false);
-
-  const DURATIONS = [
-    {days:7,  label:"1 semana"},
-    {days:14, label:"2 semanas"},
-    {days:21, label:"3 semanas"},
-    {days:30, label:"1 mes"},
-    {days:45, label:"45 días"},
-    {days:60, label:"2 meses"},
-    {days:90, label:"3 meses"},
-  ];
-  const [customExs,setCustomExs]   = useState([]);
-  const [showNewEx,setShowNewEx]   = useState(false);
-  const [newEx,setNewEx]           = useState({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10"});
-  const [savingEx,setSavingEx]     = useState(false);
-
-  const refreshCustom = () =>
-    supabase.from("custom_exercises").select("*").eq("therapist_id",user.id).order("created_at",{ascending:false})
-      .then(({data})=>setCustomExs((data||[]).map(e=>({
-        id:"custom_"+e.id, dbId:e.id, name:e.name, description:e.description||"",
-        category:e.category||"Personalizado", defaultSets:e.default_sets||3,
-        defaultReps:e.default_reps||"10", videoUrl:e.video_url, isCustom:true,
-      }))));
-
-  useEffect(()=>{ refreshCustom(); },[user.id]);
-
-  const saveNewEx = async () => {
-    if(!newEx.name.trim()) return;
-    setSavingEx(true);
-    const {data, error} = await supabase.from("custom_exercises").insert({
-      therapist_id:user.id, name:newEx.name.trim(), description:newEx.description,
-      category:newEx.category, default_block:activeBlock,
-      default_sets:parseInt(newEx.default_sets)||3, default_reps:newEx.default_reps,
-    }).select().single();
-    if(error){ alert("Error al guardar: "+error.message); setSavingEx(false); return; }
-    if(data){
-      // Use a unique numeric-safe id for the exercise
-      const exId = 900000 + Math.floor(Math.random()*99999);
-      const ex = {
-        id: exId,
-        name:data.name, description:data.description||"",
-        category:data.category, defaultSets:data.default_sets,
-        defaultReps:data.default_reps, isCustom:true, dbId:data.id,
-      };
-      setCustomExs(prev=>[{...ex,id:"custom_"+data.id},...prev]);
-      setSelected(prev=>({
-        ...prev,
-        [activeBlock]:[...prev[activeBlock],{
-          ...ex, sets:ex.defaultSets, reps:ex.defaultReps, block:activeBlock
-        }]
-      }));
-    }
-    setNewEx({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10"});
-    setShowNewEx(false); setSavingEx(false);
-  };
-
-  const allExercises = [...customExs, ...EXERCISES];
-  const allCategories = ["Todos","Mis ejercicios",...CATEGORIES];
-
-  const filtered = allExercises.filter(ex=>{
-    if(category==="Mis ejercicios") return ex.isCustom;
-    const mc = category==="Todos"||ex.category===category;
-    const ms = ex.name.toLowerCase().includes(search.toLowerCase())||(ex.description||"").toLowerCase().includes(search.toLowerCase());
-    return mc&&ms;
-  });
-
-  const allSelected   = Object.values(selected).flat();
-  const isAnyBlock    = ex => allSelected.find(e=>e.id===ex.id);
-  const blockOfEx     = ex => { for(const b of BLOCKS) if(selected[b].find(e=>e.id===ex.id)) return b; return null; };
-
-  const addEx = ex => {
-    if(isAnyBlock(ex)) return;
-    setSelected(prev=>({...prev,[activeBlock]:[...prev[activeBlock],{...ex,sets:ex.defaultSets,reps:ex.defaultReps,block:activeBlock}]}));
-  };
-  const removeEx = (ex,block) => setSelected(prev=>({...prev,[block]:prev[block].filter(e=>e.id!==ex.id)}));
-  const updateEx = (id,block,field,val) => setSelected(prev=>({...prev,[block]:prev[block].map(e=>e.id===id?{...e,[field]:val}:e)}));
-
-  const send = async () => {
-    const allExercises = BLOCKS.flatMap(b=>(selected[b]||[]).map(e=>({...e,block:b})));
-    if(!allExercises.length) return;
-    setLoading(true);
-    const startDate = new Date().toISOString().split("T")[0];
-    const endDate = new Date(Date.now() + duration*24*60*60*1000).toISOString().split("T")[0];
-    if(isEdit) {
-      const {error} = await supabase.from("prescriptions")
-        .update({exercises:allExercises, note, duration_days:duration, end_date:endDate})
-        .eq("id",existingPrescription.id);
-      if(!error) setSubmitted(true); else alert("Error: "+error.message);
-    } else {
-      const {error} = await supabase.from("prescriptions")
-        .insert({patient_id:patient.id, therapist_id:user.id, exercises:allExercises, note,
-                 duration_days:duration, start_date:startDate, end_date:endDate});
-      if(!error) setSubmitted(true); else alert("Error: "+error.message);
-    }
-    setLoading(false);
-  };
-
-  const total = allSelected.length;
-
-  if(submitted) return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 16px", textAlign:"center" }}>
-      <div style={{ width:72, height:72, background:"rgba(52,211,153,0.15)", border:"1px solid rgba(52,211,153,0.3)", borderRadius:24, display:"flex", alignItems:"center", justifyContent:"center", fontSize:36, marginBottom:20 }}>✓</div>
-      <h3 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:24, margin:"0 0 8px" }}>{isEdit?"¡Plan actualizado!":"¡Plan guardado!"}</h3>
-      <p style={{ color:C.muted, marginBottom:24 }}>{total} ejercicios para <strong style={{color:C.text}}>{patient.name}</strong></p>
-      <button onClick={onBack} style={{ background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:14, padding:"12px 28px", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:15 }}>Volver</button>
+  return(
+    <div>
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:16,marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10,marginBottom:10}}>
+          <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{...inp}}/>
+        </div>
+        <textarea value={text} onChange={e=>setText(e.target.value)} rows={4} placeholder="Observaciones clínicas de la sesión..."
+          style={{...inp,resize:"none",lineHeight:1.6,marginBottom:10}}/>
+        <Btn onClick={save} disabled={!text.trim()||saving} variant="primary" style={{width:"100%"}}>{saving?"Guardando...":"Guardar nota"}</Btn>
+      </div>
+      {loading?<Spinner/>:notes.length===0?<p style={{color:C.muted,textAlign:"center",padding:"24px 0",fontSize:13}}>Sin notas aún</p>:(
+        <div style={{display:"grid",gap:10}}>
+          {notes.map(n=>(
+            <div key={n.id} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <span style={{color:C.accentL,fontSize:12,fontWeight:600}}>{new Date(n.session_date+"T12:00").toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long"})}</span>
+                <button onClick={()=>del(n.id)} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",display:"flex",padding:3}}>{I.trash}</button>
+              </div>
+              <p style={{color:C.text,fontSize:13,lineHeight:1.65,margin:0,whiteSpace:"pre-wrap"}}>{n.note}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
+}
 
-  return (
+// ─── PATIENT PROFILE ─────────────────────────────────────────────────────────
+function PatientProfile({patient,user,onBack,onPrescribe,onApprove}){
+  const [prescriptions,setPres]=useState([]);
+  const [logs,setLogs]=useState([]);
+  const [loading,setLoad]=useState(true);
+  const [activeTab,setTab]=useState("plans");
+  const [activePres,setActivePres]=useState(null);
+  const [showInvite,setInvite]=useState(false);
+  const [editPres,setEditPres]=useState(null);
+
+  const fetchPrescriptions=async()=>{
+    const[{data:p},{data:l}]=await Promise.all([
+      supabase.from("prescriptions").select("*").eq("patient_id",patient.id).order("created_at",{ascending:false}),
+      supabase.from("exercise_logs").select("*").eq("patient_id",patient.id),
+    ]);
+    setPres(p||[]);setLogs(l||[]);setLoad(false);
+  };
+  useEffect(()=>{fetchPrescriptions();},[patient.id]);
+
+  const deletePrescription=async(id)=>{if(!window.confirm("¿Eliminar este plan permanentemente?"))return;await supabase.from("prescriptions").delete().eq("id",id);setPres(prev=>prev.filter(p=>p.id!==id));};
+
+  let streak=0;
+  for(let i=0;i<30;i++){const d=new Date();d.setDate(d.getDate()-i);if(logs.some(l=>new Date(l.completed_at).toDateString()===d.toDateString()))streak++;else if(i>0)break;}
+
+  if(editPres)return<PrescribeView user={user} patient={patient} onBack={()=>{setEditPres(null);fetchPrescriptions();}} existingPrescription={editPres}/>;
+
+  const deletePatient=async()=>{
+    if(!window.confirm(`¿Eliminar a ${patient.name}? Se borrarán todos sus datos. Esta acción no se puede deshacer.`))return;
+    await Promise.all([supabase.from("prescriptions").delete().eq("patient_id",patient.id),supabase.from("exercise_logs").delete().eq("patient_id",patient.id),supabase.from("session_notes").delete().eq("patient_id",patient.id)]);
+    await supabase.from("patients").delete().eq("id",patient.id);
+    onBack();
+  };
+
+  return(
     <div>
-      <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, color:C.muted, background:"none", border:"none", cursor:"pointer", fontSize:14, fontWeight:500, marginBottom:20 }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-        Volver
-      </button>
+      {showInvite&&<InviteModal patient={patient} onClose={()=>setInvite(false)}/>}
+      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,color:C.muted,background:"none",border:"none",cursor:"pointer",fontSize:13,marginBottom:20}}>{I.back} Volver</button>
 
-      <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:24 }}>
-        <Avatar name={patient.name} size={52}/>
-        <div>
-          <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:22, margin:0 }}>{isEdit?"Editar plan":"Prescribir ejercicios"}</h2>
-          <p style={{ color:C.muted, fontSize:14, marginTop:3 }}>{patient.name} · {patient.condition||"Sin diagnóstico"}</p>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,marginBottom:20}}>
+        <div style={{display:"flex",gap:14,alignItems:"center"}}>
+          <Avatar name={patient.name} size={52}/>
+          <div>
+            <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:20,margin:"0 0 3px"}}>{patient.name}</h2>
+            <p style={{color:C.muted,fontSize:13,margin:"0 0 6px"}}>{patient.condition||"Sin diagnóstico"}{patient.age?` · ${patient.age} años`:""}</p>
+            {patient.invite_status==="aprobado"?<Tag label="Acceso activo" color={C.success}/>:patient.invite_status==="pendiente"?<Tag label="Pendiente" color={C.warn}/>:<Tag label="Sin acceso" color={C.danger}/>}
+          </div>
         </div>
+        <Menu items={[
+          {label:"Nuevo plan",    icon:I.plus,  action:()=>onPrescribe(patient)},
+          patient.invite_status!=="aprobado"&&{label:"Habilitar acceso", action:()=>onApprove(patient.id)},
+          {label:"Copiar link",   icon:I.link,  action:()=>setInvite(true)},
+          {label:"Exportar PDF",  icon:I.pdf,   action:()=>exportPDF(patient,prescriptions[0])},
+          "---",
+          {label:"Eliminar paciente", icon:I.trash, danger:true, action:deletePatient},
+        ].filter(Boolean)}/>
       </div>
 
-      {/* New exercise modal — outside grid so position:fixed works correctly */}
-      {showNewEx && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px 16px", overflowY:"auto" }}>
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:24, width:"100%", maxWidth:460, margin:"auto" }}>
-            <h3 style={{ color:C.text, fontWeight:700, fontSize:17, margin:"0 0 16px" }}>Nuevo ejercicio</h3>
-            <div style={{ display:"grid", gap:11 }}>
-              <div>
-                <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:4 }}>Nombre *</label>
-                <input value={newEx.name} onChange={e=>setNewEx({...newEx,name:e.target.value})} placeholder="Ej: Sentadilla isométrica"
-                  style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 13px", fontSize:14, color:C.text, outline:"none", width:"100%" }}/>
-              </div>
-              <div>
-                <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:4 }}>Descripción</label>
-                <textarea value={newEx.description} onChange={e=>setNewEx({...newEx,description:e.target.value})} rows={3} placeholder="Cómo se realiza..."
-                  style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:11, padding:"10px 13px", fontSize:14, color:C.text, outline:"none", width:"100%", resize:"none", lineHeight:1.5 }}/>
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
-                <div>
-                  <label style={{ fontSize:11, color:C.muted, display:"block", marginBottom:4 }}>Categoría</label>
-                  <select value={newEx.category} onChange={e=>setNewEx({...newEx,category:e.target.value})}
-                    style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px", fontSize:12, color:C.text, outline:"none", width:"100%" }}>
-                    {["Rehabilitacion","Core / Abdomen","Gluteos / Cadera","Pierna / Rodilla","Hombro / Escapular","Pecho / Empuje","Espalda / Traccion","Tobillo / Pie","Cervical / Cuello","Calentamiento","Full Body","Otro"].map(cat=><option key={cat}>{cat}</option>)}
-                  </select>
+      {/* Stats */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:18}}>
+        {[{v:prescriptions.length,l:"Planes",c:C.accent},{v:streak,l:"Racha",c:C.warn},{v:logs.length,l:"Completados",c:C.success}].map((s,i)=>(
+          <div key={i} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 8px",textAlign:"center"}}>
+            <p style={{color:s.c,fontSize:22,fontWeight:700,margin:0,fontFamily:"'Fraunces',serif"}}>{s.v}</p>
+            <p style={{color:C.muted,fontSize:11,margin:"3px 0 0"}}>{s.l}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:2,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:3,marginBottom:16}}>
+        {["plans","progress","notes"].map(t=>(
+          <button key={t} onClick={()=>setTab(t)} style={{flex:1,padding:"7px",borderRadius:9,border:"none",cursor:"pointer",fontWeight:600,fontSize:12,transition:"all .15s",background:activeTab===t?C.card:"transparent",color:activeTab===t?C.text:C.muted}}>
+            {t==="plans"?"Planes":t==="progress"?"Progreso":"Notas"}
+          </button>
+        ))}
+      </div>
+
+      {/* Plans */}
+      {activeTab==="plans"&&(
+        loading?<Spinner/>:prescriptions.length===0?(
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:32,textAlign:"center"}}>
+            <p style={{color:C.muted,fontSize:13}}>Sin planes prescritos</p>
+            <Btn onClick={()=>onPrescribe(patient)} variant="primary" style={{marginTop:12}}>Crear primer plan</Btn>
+          </div>
+        ):(
+          <div style={{display:"grid",gap:8}}>
+            {prescriptions.map((pres,i)=>{
+              const dl=pres.end_date?daysLeft(pres.end_date):null;
+              const dCol=dl===null?null:dl<0?C.danger:dl<=5?C.warn:C.success;
+              return(
+                <div key={pres.id} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px"}}>
+                    <button onClick={()=>setActivePres(activePres===pres.id?null:pres.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-start",background:"none",border:"none",cursor:"pointer",textAlign:"left",gap:3}}>
+                      <span style={{color:C.text,fontWeight:600,fontSize:13}}>{i===0?"Plan actual":`Plan #${prescriptions.length-i}`}</span>
+                      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                        <span style={{color:C.muted,fontSize:11}}>{new Date(pres.created_at).toLocaleDateString("es-CO",{day:"numeric",month:"short",year:"numeric"})} · {pres.exercises?.length||0} ejercicios</span>
+                        {dCol&&<Tag label={dl<0?"Vencido":dl===0?"Vence hoy":`${dl}d`} color={dCol}/>}
+                      </div>
+                    </button>
+                    <Menu items={[
+                      {label:"Editar",    icon:I.edit,  action:()=>setEditPres(pres)},
+                      {label:"Duplicar",  action:async()=>{const dur=pres.duration_days||30;const sd=localDateStr(new Date());const ed=localDateStr(new Date(Date.now()+dur*864e5));await supabase.from("prescriptions").insert({patient_id:patient.id,therapist_id:user.id,exercises:pres.exercises,note:pres.note||"",duration_days:dur,start_date:sd,end_date:ed});fetchPrescriptions();}},
+                      {label:"Renovar",   action:async()=>{if(!window.confirm("¿Renovar por el mismo período?"))return;const dur=pres.duration_days||30;const sd=localDateStr(new Date());const ed=localDateStr(new Date(Date.now()+dur*864e5));await supabase.from("prescriptions").update({start_date:sd,end_date:ed}).eq("id",pres.id);fetchPrescriptions();}},
+                      {label:"Exportar PDF", icon:I.pdf, action:()=>exportPDF(patient,pres)},
+                      "---",
+                      {label:"Eliminar",  icon:I.trash, danger:true, action:()=>deletePrescription(pres.id)},
+                    ]}/>
+                  </div>
+                  {activePres===pres.id&&(
+                    <div style={{borderTop:`1px solid ${C.border}`,padding:"12px 14px"}}>
+                      {pres.note&&<p style={{color:C.accentL,fontSize:12,background:"rgba(38,166,154,.07)",border:"1px solid rgba(38,166,154,.15)",borderRadius:8,padding:"8px 12px",marginBottom:10,lineHeight:1.6}}>{pres.note}</p>}
+                      {BLOCKS.concat(["Sin bloque"]).map(b=>{
+                        const exList=(pres.exercises||[]).filter(e=>(e.block||"Sin bloque")===b);
+                        if(!exList.length)return null;
+                        const m=BM[b]||BM["Sin bloque"];
+                        return(
+                          <div key={b} style={{marginBottom:10}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                              <div style={{width:6,height:6,borderRadius:"50%",background:m.c}}/>
+                              <span style={{color:m.c,fontWeight:700,fontSize:11,textTransform:"uppercase",letterSpacing:.5}}>{b}</span>
+                            </div>
+                            {exList.map((ex,j)=>(
+                              <div key={j} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+                                <span style={{color:C.text,fontSize:13}}>{ex.name}</span>
+                                <span style={{color:C.accent,fontWeight:700,fontSize:12,flexShrink:0,marginLeft:12}}>{ex.sets}×{ex.reps}</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label style={{ fontSize:11, color:C.muted, display:"block", marginBottom:4 }}>Series</label>
-                  <input type="number" value={newEx.default_sets} min="1" onChange={e=>setNewEx({...newEx,default_sets:e.target.value})}
-                    style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px", fontSize:14, color:C.text, outline:"none", width:"100%", textAlign:"center", fontWeight:700 }}/>
+              );
+            })}
+          </div>
+        )
+      )}
+
+      {/* Progress */}
+      {activeTab==="progress"&&(
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
+          {/* 7-day chart */}
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:16}}>
+            <p style={{color:C.muted,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 14px"}}>Últimos 7 días</p>
+            {(()=>{
+              const last7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));return d;});
+              const lpd=last7.map(d=>({d,n:logs.filter(l=>new Date(l.completed_at).toDateString()===d.toDateString()).length}));
+              const maxN=Math.max(...lpd.map(x=>x.n),1);
+              const dS=["D","L","M","X","J","V","S"];
+              return(
+                <div style={{display:"flex",alignItems:"flex-end",gap:6,height:60}}>
+                  {lpd.map(({d,n},i)=>{const isT=d.toDateString()===new Date().toDateString();return(
+                    <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                      {n>0&&<span style={{fontSize:10,color:isT?C.accent:C.muted}}>{n}</span>}
+                      <div style={{width:"100%",borderRadius:6,minHeight:3,height:`${n>0?Math.max((n/maxN)*46,6):3}px`,background:isT?C.accent:n>0?"rgba(38,166,154,.3)":C.border,transition:"height .4s"}}/>
+                      <span style={{fontSize:9,color:isT?C.accent:C.dim,fontWeight:isT?700:400}}>{dS[d.getDay()]}</span>
+                    </div>
+                  );})}
                 </div>
-                <div>
-                  <label style={{ fontSize:11, color:C.muted, display:"block", marginBottom:4 }}>Reps</label>
-                  <input type="text" value={newEx.default_reps} onChange={e=>setNewEx({...newEx,default_reps:e.target.value})}
-                    style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px", fontSize:14, color:C.text, outline:"none", width:"100%", textAlign:"center", fontWeight:700 }}/>
-                </div>
-              </div>
-            </div>
-            <p style={{ color:C.muted, fontSize:12, margin:"10px 0 0" }}>Se agregará al bloque: <strong style={{color:C.accentL}}>{activeBlock}</strong></p>
-            <div style={{ display:"flex", gap:10, marginTop:16 }}>
-              <button onClick={saveNewEx} disabled={!newEx.name.trim()||savingEx}
-                style={{ flex:1, background:C.accentG, border:"none", borderRadius:12, padding:12, color:"#fff", fontWeight:700, cursor:"pointer", opacity:savingEx?0.6:1, fontSize:14 }}>
-                {savingEx?"Guardando...":"Crear y agregar al plan"}
-              </button>
-              <button onClick={()=>setShowNewEx(false)}
-                style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"12px 16px", color:C.muted, cursor:"pointer" }}>
-                Cancelar
-              </button>
+              );
+            })()}
+          </div>
+          {/* Heatmap */}
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:16}}>
+            <p style={{color:C.muted,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 12px"}}>30 días</p>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+              {Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));const n=logs.filter(l=>new Date(l.completed_at).toDateString()===d.toDateString()).length;const isT=d.toDateString()===new Date().toDateString();return<div key={i} style={{width:22,height:22,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,outline:isT?`2px solid ${C.accent}`:"none",outlineOffset:1,background:n===0?C.border:n<=2?"rgba(38,166,154,.22)":n<=5?"rgba(38,166,154,.5)":"rgba(38,166,154,.88)",color:n===0?C.dim:C.text}}>{d.getDate()}</div>;})}
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24 }}>
-        {/* LEFT - Library */}
-        <div>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
-            <p style={{ fontSize:11, fontWeight:700, color:C.dim, letterSpacing:2, textTransform:"uppercase", margin:0 }}>Biblioteca · {allExercises.length}</p>
-            <button onClick={()=>setShowNewEx(true)}
-              style={{ display:"flex", alignItems:"center", gap:5, background:"rgba(38,166,154,0.12)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:9, padding:"5px 10px", color:C.accent, fontSize:12, fontWeight:600, cursor:"pointer" }}>
-              {Icon.plus} Crear ejercicio
-            </button>
-          </div>
+      {activeTab==="notes"&&<SessionNotesView patient={patient} user={user}/>}
+    </div>
+  );
+}
 
-          {/* Block selector */}
-          <div style={{ marginBottom:14 }}>
-            <p style={{ fontSize:12, color:C.muted, marginBottom:8 }}>Agregar al bloque:</p>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-              {BLOCKS.map(b=>{
-                const m = BLOCK_META[b];
-                return (
-                  <button key={b} onClick={()=>setActiveBlock(b)}
-                    style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, padding:"6px 12px", borderRadius:10, cursor:"pointer", fontWeight:600, transition:"all 0.2s",
-                      background: activeBlock===b ? m.bg : "transparent",
-                      border: activeBlock===b ? `1px solid ${m.color}55` : `1px solid ${C.border}`,
-                      color: activeBlock===b ? m.color : C.muted
-                    }}>
-                    {m.icon} {b}
-                  </button>
-                );
-              })}
+// ─── PATIENTS VIEW ────────────────────────────────────────────────────────────
+function PatientsView({user,onPrescribe,onViewProfile,initialFilter,onClearFilter}){
+  const [patients,setPts]=useState([]);
+  const [loading,setLoad]=useState(true);
+  const [search,setSearch]=useState("");
+  const [statusFilter,setSF]=useState(initialFilter||null);
+  const [showForm,setForm]=useState(false);
+  const [showInvite,setInvite]=useState(null);
+  const [editPt,setEditPt]=useState(null);
+  const [form,setF]=useState({name:"",age:"",condition:"",email:""});
+
+  useEffect(()=>{if(initialFilter)setSF(initialFilter);},[initialFilter]);
+  useEffect(()=>{load();},[]);
+  const load=async()=>{const{data}=await supabase.from("patients").select("*").order("created_at",{ascending:false});setPts(data||[]);setLoad(false);};
+
+  const approvePatient=async(id)=>{await supabase.from("patients").update({invite_status:"aprobado"}).eq("id",id);load();};
+  const addPatient=async()=>{
+    if(!form.name.trim())return;
+    const token=crypto.randomUUID();
+    const{data,error}=await supabase.from("patients").insert({...form,therapist_id:user.id,age:parseInt(form.age)||null,invite_token:token}).select().single();
+    setF({name:"",age:"",condition:"",email:""});setForm(false);load();
+    if(data&&!error)setInvite(data);
+  };
+  const saveEdit=async()=>{
+    if(!editPt||!form.name.trim())return;
+    await supabase.from("patients").update({name:form.name,age:parseInt(form.age)||null,condition:form.condition,email:form.email}).eq("id",editPt.id);
+    setEditPt(null);setF({name:"",age:"",condition:"",email:""});load();
+  };
+  const deletePt=async(p)=>{
+    if(!window.confirm(`¿Eliminar a ${p.name}? Esta acción no se puede deshacer.`))return;
+    await supabase.from("prescriptions").delete().eq("patient_id",p.id);
+    await supabase.from("patients").delete().eq("id",p.id);
+    load();
+  };
+
+  const filtered=patients.filter(p=>{
+    const ms=p.name.toLowerCase().includes(search.toLowerCase())||(p.condition||"").toLowerCase().includes(search.toLowerCase());
+    const mf=!statusFilter||p.invite_status===statusFilter;
+    return ms&&mf;
+  });
+
+  return(
+    <div>
+      {showInvite&&<InviteModal patient={showInvite} onClose={()=>setInvite(null)}/>}
+
+      {/* New patient modal */}
+      {showForm&&(
+        <Modal title="Nuevo paciente" onClose={()=>{setForm(false);setF({name:"",age:"",condition:"",email:""});}}>
+          <div style={{display:"grid",gap:10}}>
+            <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Nombre *</label><input value={form.name} onChange={e=>setF({...form,name:e.target.value})} style={inp}/></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Edad</label><input value={form.age} onChange={e=>setF({...form,age:e.target.value})} type="number" style={inp}/></div>
+              <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Correo</label><input value={form.email} onChange={e=>setF({...form,email:e.target.value})} type="email" style={inp}/></div>
+            </div>
+            <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Diagnóstico</label><input value={form.condition} onChange={e=>setF({...form,condition:e.target.value})} style={inp}/></div>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:18}}>
+            <Btn onClick={addPatient} variant="primary" style={{flex:1}}>Guardar y generar link</Btn>
+            <Btn onClick={()=>{setForm(false);setF({name:"",age:"",condition:"",email:""});}} variant="ghost">Cancelar</Btn>
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit patient modal */}
+      {editPt&&(
+        <Modal title="Editar paciente" onClose={()=>{setEditPt(null);setF({name:"",age:"",condition:"",email:""});}}>
+          <div style={{display:"grid",gap:10}}>
+            <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Nombre *</label><input value={form.name} onChange={e=>setF({...form,name:e.target.value})} style={inp}/></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Edad</label><input value={form.age} onChange={e=>setF({...form,age:e.target.value})} type="number" style={inp}/></div>
+              <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Correo</label><input value={form.email} onChange={e=>setF({...form,email:e.target.value})} type="email" style={inp}/></div>
+            </div>
+            <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Diagnóstico</label><input value={form.condition} onChange={e=>setF({...form,condition:e.target.value})} style={inp}/></div>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:18}}>
+            <Btn onClick={saveEdit} variant="primary" style={{flex:1}}>Guardar</Btn>
+            <Btn onClick={()=>{setEditPt(null);setF({name:"",age:"",condition:"",email:""});}} variant="ghost">Cancelar</Btn>
+          </div>
+        </Modal>
+      )}
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,gap:10}}>
+        <div>
+          <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:20,margin:0}}>Pacientes</h2>
+          <p style={{color:C.muted,fontSize:12,margin:"2px 0 0"}}>{patients.length} en total</p>
+        </div>
+        <Btn onClick={()=>setForm(true)} variant="primary">{I.plus} Nuevo</Btn>
+      </div>
+
+      {/* Search + filter */}
+      <div style={{display:"flex",gap:8,marginBottom:14}}>
+        <div style={{flex:1,position:"relative"}}>
+          <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",color:C.dim}}>{I.search}</span>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por nombre o diagnóstico..." style={{...inp,paddingLeft:34}}/>
+        </div>
+        {statusFilter&&<Btn onClick={()=>{setSF(null);if(onClearFilter)onClearFilter();}} variant="ghost">{statusFilter==="pendiente"?"Pendientes":"Filtro"} ✕</Btn>}
+      </div>
+
+      {loading?<Spinner/>:filtered.length===0?(
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:40,textAlign:"center"}}>
+          <p style={{color:C.muted,fontSize:13}}>{patients.length===0?"Crea tu primer paciente":"Sin resultados"}</p>
+        </div>
+      ):(
+        <div style={{display:"grid",gap:6}}>
+          {filtered.map(p=>(
+            <div key={p.id} onClick={()=>onViewProfile(p)}
+              style={{display:"flex",alignItems:"center",gap:12,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",cursor:"pointer",transition:"border-color .15s"}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent+"44"}
+              onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+              <Avatar name={p.name} size={36}/>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{color:C.text,fontWeight:600,fontSize:14,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</p>
+                <p style={{color:C.muted,fontSize:12,margin:"2px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.condition||"Sin diagnóstico"}{p.age?` · ${p.age} años`:""}</p>
+              </div>
+              {p.invite_status==="aprobado"&&<Tag label="Activo" color={C.success}/>}
+              {p.invite_status==="pendiente"&&<Tag label="Pendiente" color={C.warn}/>}
+              {!p.invite_status&&<Tag label="Sin acceso" color={C.dim}/>}
+              <div onClick={e=>e.stopPropagation()}>
+                <Menu items={[
+                  {label:"Ver perfil",      action:()=>onViewProfile(p)},
+                  {label:"Prescribir plan", icon:I.plus,  action:()=>onPrescribe(p)},
+                  {label:"Editar datos",    icon:I.edit,  action:()=>{setEditPt(p);setF({name:p.name,age:p.age||"",condition:p.condition||"",email:p.email||""});}},
+                  {label:"Copiar link",     icon:I.link,  action:()=>setInvite(p)},
+                  p.invite_status!=="aprobado"&&{label:"Habilitar acceso", action:()=>approvePatient(p.id)},
+                  "---",
+                  {label:"Eliminar",        icon:I.trash, danger:true, action:()=>deletePt(p)},
+                ].filter(Boolean)}/>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── PRESCRIBE VIEW ───────────────────────────────────────────────────────────
+function PrescribeView({user,patient,onBack,existingPrescription}){
+  const isEdit=!!existingPrescription;
+  const initBlocks=()=>{const s={"Terapia":[],"Calentamiento / Activación":[],"Trabajo central":[]};if(isEdit)(existingPrescription.exercises||[]).forEach(ex=>{const b=ex.block||"Trabajo central";if(s[b])s[b].push({...ex});else s["Trabajo central"].push({...ex});});return s;};
+
+  const [selected,setSel]=useState(initBlocks);
+  const [note,setNote]=useState(existingPrescription?.note||"");
+  const [duration,setDur]=useState(existingPrescription?.duration_days||30);
+  const [activeBlock,setAB]=useState("Trabajo central");
+  const [search,setSearch]=useState("");
+  const [cat,setCat]=useState("Todos");
+  const [submitted,setDone]=useState(false);
+  const [loading,setLoad]=useState(false);
+  const [customExs,setCustom]=useState([]);
+  const [showNewEx,setNewExOpen]=useState(false);
+  const [newEx,setNewEx]=useState({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10"});
+  const [savingEx,setSavingEx]=useState(false);
+
+  const refreshCustom=()=>supabase.from("custom_exercises").select("*").eq("therapist_id",user.id).order("created_at",{ascending:false}).then(({data})=>setCustom((data||[]).map(e=>({id:"custom_"+e.id,dbId:e.id,name:e.name,description:e.description||"",category:e.category||"Personalizado",defaultSets:e.default_sets||3,defaultReps:e.default_reps||"10",isCustom:true}))));
+  useEffect(()=>{refreshCustom();},[user.id]);
+
+  const saveNewEx=async()=>{
+    if(!newEx.name.trim())return;
+    setSavingEx(true);
+    const{data,error}=await supabase.from("custom_exercises").insert({therapist_id:user.id,name:newEx.name.trim(),description:newEx.description,category:newEx.category,default_block:activeBlock,default_sets:parseInt(newEx.default_sets)||3,default_reps:newEx.default_reps}).select().single();
+    if(error){alert("Error: "+error.message);setSavingEx(false);return;}
+    if(data){const exId=900000+Math.floor(Math.random()*99999);const ex={id:exId,name:data.name,description:data.description||"",category:data.category,defaultSets:data.default_sets,defaultReps:data.default_reps,isCustom:true,dbId:data.id};setSel(prev=>({...prev,[activeBlock]:[...prev[activeBlock],{...ex,sets:ex.defaultSets,reps:ex.defaultReps,block:activeBlock}]}));refreshCustom();}
+    setNewEx({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10"});setNewExOpen(false);setSavingEx(false);
+  };
+
+  const allExercises=[...customExs,...EXERCISES];
+  const filtered=allExercises.filter(ex=>{if(cat==="Mis ejercicios")return ex.isCustom;const mc=cat==="Todos"||ex.category===cat;const ms=ex.name.toLowerCase().includes(search.toLowerCase())||(ex.description||"").toLowerCase().includes(search.toLowerCase());return mc&&ms;});
+  const allSelected=Object.values(selected).flat();
+  const isIn=ex=>allSelected.find(e=>e.id===ex.id);
+  const blockOf=ex=>{for(const b of BLOCKS)if(selected[b].find(e=>e.id===ex.id))return b;return null;};
+  const addEx=ex=>{if(isIn(ex))return;setSel(prev=>({...prev,[activeBlock]:[...prev[activeBlock],{...ex,sets:ex.defaultSets,reps:ex.defaultReps,block:activeBlock}]}));};
+  const removeEx=(ex,block)=>setSel(prev=>({...prev,[block]:prev[block].filter(e=>e.id!==ex.id)}));
+  const updateEx=(id,block,field,val)=>setSel(prev=>({...prev,[block]:prev[block].map(e=>e.id===id?{...e,[field]:val}:e)}));
+
+  const DURATIONS=[{days:7,l:"1 sem"},{days:14,l:"2 sem"},{days:21,l:"3 sem"},{days:30,l:"1 mes"},{days:45,l:"45d"},{days:60,l:"2 mes"},{days:90,l:"3 mes"}];
+
+  const send=async()=>{
+    const exs=BLOCKS.flatMap(b=>(selected[b]||[]).map(e=>({...e,block:b})));
+    if(!exs.length)return;
+    setLoad(true);
+    const sd=localDateStr(new Date());
+    const ed=localDateStr(new Date(Date.now()+duration*864e5));
+    if(isEdit){
+      const{error}=await supabase.from("prescriptions").update({exercises:exs,note,duration_days:duration,end_date:ed}).eq("id",existingPrescription.id);
+      if(!error)setDone(true);else alert("Error: "+error.message);
+    } else {
+      const{error}=await supabase.from("prescriptions").insert({patient_id:patient.id,therapist_id:user.id,exercises:exs,note,duration_days:duration,start_date:sd,end_date:ed});
+      if(!error)setDone(true);else alert("Error: "+error.message);
+    }
+    setLoad(false);
+  };
+
+  const total=allSelected.length;
+
+  if(submitted)return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"80px 16px",textAlign:"center"}}>
+      <div style={{width:52,height:52,background:"rgba(76,175,121,.15)",border:"1px solid rgba(76,175,121,.3)",borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.success} strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h3 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:20,margin:"0 0 8px"}}>{isEdit?"Plan actualizado":"Plan guardado"}</h3>
+      <p style={{color:C.muted,marginBottom:24}}>{total} ejercicios · {patient.name}</p>
+      <Btn onClick={onBack} variant="primary">Volver</Btn>
+    </div>
+  );
+
+  return(
+    <div>
+      {/* New exercise modal */}
+      {showNewEx&&(
+        <Modal title="Nuevo ejercicio" onClose={()=>setNewExOpen(false)}>
+          <div style={{display:"grid",gap:10}}>
+            <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Nombre *</label><input value={newEx.name} onChange={e=>setNewEx({...newEx,name:e.target.value})} placeholder="Ej: Sentadilla isométrica" style={inp}/></div>
+            <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Descripción</label><textarea value={newEx.description} onChange={e=>setNewEx({...newEx,description:e.target.value})} rows={3} style={{...inp,resize:"none",lineHeight:1.5}}/></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Categoría</label><select value={newEx.category} onChange={e=>setNewEx({...newEx,category:e.target.value})} style={{...inp,padding:"8px 10px"}}>{["Rehabilitacion","Core / Abdomen","Gluteos / Cadera","Pierna / Rodilla","Hombro / Escapular","Pecho / Empuje","Espalda / Traccion","Tobillo / Pie","Cervical / Cuello","Calentamiento","Full Body","Otro"].map(c=><option key={c}>{c}</option>)}</select></div>
+              <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Series</label><input type="number" value={newEx.default_sets} min="1" onChange={e=>setNewEx({...newEx,default_sets:e.target.value})} style={{...inp,textAlign:"center"}}/></div>
+              <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Reps</label><input value={newEx.default_reps} onChange={e=>setNewEx({...newEx,default_reps:e.target.value})} style={{...inp,textAlign:"center"}}/></div>
             </div>
           </div>
+          <p style={{color:C.muted,fontSize:12,marginTop:10}}>Se agregará al bloque: <strong style={{color:C.accentL}}>{activeBlock}</strong></p>
+          <div style={{display:"flex",gap:10,marginTop:16}}>
+            <Btn onClick={saveNewEx} disabled={!newEx.name.trim()||savingEx} variant="primary" style={{flex:1}}>{savingEx?"Guardando...":"Crear y agregar"}</Btn>
+            <Btn onClick={()=>setNewExOpen(false)} variant="ghost">Cancelar</Btn>
+          </div>
+        </Modal>
+      )}
 
-          <div style={{ position:"relative", marginBottom:10 }}>
-            <svg style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar ejercicio..." style={{...inp, paddingLeft:36}}/>
+      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,color:C.muted,background:"none",border:"none",cursor:"pointer",fontSize:13,marginBottom:16}}>{I.back} Volver</button>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+        {/* LEFT: Library */}
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <div style={{flex:1,position:"relative"}}>
+              <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:C.dim}}>{I.search}</span>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar ejercicio..." style={{...inp,paddingLeft:32,fontSize:12}}/>
+            </div>
+            <Btn onClick={()=>setNewExOpen(true)} variant="subtle" style={{fontSize:12,padding:"7px 11px",whiteSpace:"nowrap"}}>{I.plus} Crear</Btn>
           </div>
 
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
-            {allCategories.map(cat=>(
-              <button key={cat} onClick={()=>setCategory(cat)}
-                style={{ fontSize:11, padding:"4px 10px", borderRadius:20, cursor:"pointer", fontWeight:500, border:"none",
-                  background:category===cat?(cat==="Mis ejercicios"?"linear-gradient(135deg,#fbbf24,#f59e0b)":C.accent):"rgba(255,255,255,0.06)",
-                  color:category===cat?"#fff":C.muted }}>
-                {cat==="Mis ejercicios"?"⭐ "+cat:cat}
-              </button>
+          {/* Category pills */}
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            {["Todos","Mis ejercicios",...CATEGORIES].map(c=>(
+              <button key={c} onClick={()=>setCat(c)} style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${cat===c?C.accent:C.border}`,background:cat===c?"rgba(38,166,154,.12)":"transparent",color:cat===c?C.accent:C.muted,fontSize:11,fontWeight:cat===c?700:400,cursor:"pointer",transition:"all .15s"}}>{c}</button>
             ))}
           </div>
 
-          <div style={{ display:"grid", gap:8, maxHeight:480, overflowY:"auto", paddingRight:4 }}>
-            {filtered.map(ex=>{
-              const bOf = blockOfEx(ex);
-              const m   = bOf ? BLOCK_META[bOf] : null;
-              return (
-                <div key={ex.id} style={{ background: bOf?m.bg:C.card, border:`1px solid ${bOf?m.color+"44":C.border}`, borderRadius:16, padding:12 }}>
-                  <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                        <p style={{ color:C.text, fontWeight:600, fontSize:13, margin:0 }}>{ex.name}</p>
-                        {ex.isCustom && <span style={{ fontSize:9, background:"rgba(251,191,36,0.2)", color:"#fbbf24", padding:"1px 6px", borderRadius:8, fontWeight:700, flexShrink:0 }}>PROPIO</span>}
-                        {ex.videoUrl && <span style={{ fontSize:12 }} title="Tiene video">🎬</span>}
-                      </div>
-                      <p style={{ color:C.muted, fontSize:11, margin:"3px 0 0" }}>{(ex.description||"").slice(0,60)}{ex.description?.length>60?"...":""}</p>
-                      <div style={{ display:"flex", gap:6, marginTop:6, flexWrap:"wrap" }}>
-                        <span style={{ fontSize:10, background:"rgba(255,255,255,0.07)", color:C.muted, padding:"2px 8px", borderRadius:10 }}>{ex.category}</span>
-                        {bOf && <span style={{ fontSize:10, color:m.color, padding:"2px 8px", borderRadius:10, background:m.bg }}>{m.icon} {bOf}</span>}
-                      </div>
-                    </div>
-                    <button onClick={()=>bOf?removeEx(ex,bOf):addEx(ex)}
-                      style={{ fontSize:12, padding:"5px 10px", borderRadius:10, cursor:"pointer", fontWeight:700, border:"none", flexShrink:0,
-                        background: bOf?"rgba(248,113,113,0.15)":"rgba(38,166,154,0.15)",
-                        color: bOf?C.danger:C.accent
-                      }}>
-                      {bOf?"✕":"+"}
-                    </button>
+          {/* Block selector */}
+          <div>
+            <p style={{fontSize:11,color:C.muted,margin:"0 0 6px"}}>Agregar al bloque:</p>
+            <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+              {BLOCKS.map(b=>{const m=BM[b];return<button key={b} onClick={()=>setAB(b)} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${activeBlock===b?m.c:C.border}`,background:activeBlock===b?m.bg:"transparent",color:activeBlock===b?m.c:C.muted,fontSize:11,fontWeight:activeBlock===b?700:400,cursor:"pointer"}}>{b}</button>;})}
+            </div>
+          </div>
+
+          {/* Exercise list */}
+          <div style={{overflowY:"auto",maxHeight:500,display:"flex",flexDirection:"column",gap:5}}>
+            {filtered.length===0?<p style={{color:C.muted,fontSize:12,textAlign:"center",padding:"16px 0"}}>Sin resultados</p>:filtered.map(ex=>{
+              const inBlock=blockOf(ex);
+              return(
+                <div key={ex.id} onClick={()=>inBlock?removeEx(ex,inBlock):addEx(ex)}
+                  style={{display:"flex",alignItems:"center",gap:10,background:inBlock?"rgba(38,166,154,.07)":C.card,border:`1px solid ${inBlock?"rgba(38,166,154,.25)":C.border}`,borderRadius:10,padding:"9px 12px",cursor:"pointer",transition:"all .15s"}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <p style={{color:C.text,fontSize:12,fontWeight:500,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ex.name}</p>
+                    <p style={{color:C.muted,fontSize:10,margin:"1px 0 0"}}>{ex.category}</p>
                   </div>
+                  {inBlock?(
+                    <span style={{fontSize:10,color:BM[inBlock]?.c||C.accent,fontWeight:700,background:(BM[inBlock]?.bg||"rgba(38,166,154,.1)"),border:`1px solid ${BM[inBlock]?.c||C.accent}33`,borderRadius:6,padding:"1px 6px",flexShrink:0}}>{inBlock.split(" ")[0]}</span>
+                  ):(
+                    <span style={{color:C.dim,fontSize:10,flexShrink:0}}>+ agregar</span>
+                  )}
                 </div>
               );
             })}
-            {filtered.length===0 && <p style={{ color:C.muted, textAlign:"center", padding:24, fontSize:14 }}>Sin resultados</p>}
           </div>
         </div>
 
-        {/* RIGHT - Plan */}
+        {/* RIGHT: Plan */}
         <div>
-          <p style={{ fontSize:11, fontWeight:700, color:C.dim, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>Plan · {total} ejercicios</p>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <p style={{color:C.text,fontWeight:600,fontSize:14,margin:0}}>Plan de {patient.name}</p>
+            <span style={{color:C.muted,fontSize:12}}>{total} ejercicios</span>
+          </div>
 
-          {total===0 ? (
-            <div style={{ background:C.card, border:`2px dashed ${C.border}`, borderRadius:20, padding:40, textAlign:"center", color:C.dim, fontSize:14, marginBottom:14 }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.5" style={{marginBottom:10}}><path d="M6.5 6.5h11M6.5 17.5h11M2 12h20M4 9.5v5M20 9.5v5"/></svg>
-              Selecciona ejercicios de la biblioteca
+          {/* Duration */}
+          <div style={{marginBottom:12}}>
+            <p style={{fontSize:11,color:C.muted,margin:"0 0 6px"}}>Duración</p>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {DURATIONS.map(d=>(
+                <button key={d.days} onClick={()=>setDur(d.days)} style={{padding:"4px 10px",borderRadius:20,border:`1px solid ${duration===d.days?C.accent:C.border}`,background:duration===d.days?"rgba(38,166,154,.12)":"transparent",color:duration===d.days?C.accent:C.muted,fontSize:11,fontWeight:duration===d.days?700:400,cursor:"pointer"}}>
+                  {d.l}
+                </button>
+              ))}
             </div>
-          ) : (
-            <div style={{ display:"grid", gap:12, maxHeight:400, overflowY:"auto", paddingRight:4, marginBottom:14 }}>
-              {BLOCKS.map(blockName=>{
-                const exList = selected[blockName];
-                if(!exList.length) return null;
-                const m = BLOCK_META[blockName];
-                return (
-                  <div key={blockName}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, background:m.bg, border:`1px solid ${m.color}33`, borderRadius:12, padding:"8px 12px", marginBottom:8 }}>
-                      <span>{m.icon}</span>
-                      <span style={{ color:m.color, fontWeight:700, fontSize:12 }}>{blockName}</span>
-                      <span style={{ marginLeft:"auto", color:m.color, fontSize:11, background:"rgba(0,0,0,0.2)", padding:"1px 7px", borderRadius:8 }}>{exList.length}</span>
+            <p style={{color:C.dim,fontSize:11,marginTop:5}}>Vence: <span style={{color:C.accentL}}>{new Date(Date.now()+duration*864e5).toLocaleDateString("es-CO",{day:"numeric",month:"short",year:"numeric"})}</span></p>
+          </div>
+
+          {/* Blocks */}
+          {total===0?(
+            <div style={{background:C.surface,border:`1px dashed ${C.border}`,borderRadius:12,padding:"28px 16px",textAlign:"center"}}>
+              <p style={{color:C.muted,fontSize:12}}>Selecciona ejercicios de la biblioteca</p>
+            </div>
+          ):(
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:12}}>
+              {BLOCKS.map(b=>{
+                const exs=selected[b];if(!exs.length)return null;const m=BM[b];
+                return(
+                  <div key={b}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+                      <div style={{width:6,height:6,borderRadius:"50%",background:m.c}}/>
+                      <span style={{color:m.c,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.4}}>{b}</span>
                     </div>
-                    {exList.map((ex,i)=>(
-                      <div key={ex.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:12, marginBottom:8 }}>
-                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
-                          <div>
-                            <span style={{ fontSize:10, color:m.color, fontWeight:700 }}>#{i+1}</span>
-                            <p style={{ color:C.text, fontWeight:600, fontSize:13, margin:"2px 0 0" }}>{ex.name}</p>
-                          </div>
-                          <button onClick={()=>removeEx(ex,blockName)} style={{ background:"none", border:"none", color:C.dim, cursor:"pointer", fontSize:18, padding:0 }}>×</button>
-                        </div>
-                        <div style={{ display:"flex", gap:8 }}>
-                          <div style={{ flex:1 }}>
-                            <label style={{ fontSize:11, color:C.dim, display:"block", marginBottom:4 }}>Series</label>
-                            <input type="number" value={ex.sets} min="1" onChange={e=>updateEx(ex.id,blockName,"sets",e.target.value)}
-                              style={{...inp, textAlign:"center", fontWeight:700, padding:"8px"}}/>
-                          </div>
-                          <div style={{ flex:1 }}>
-                            <label style={{ fontSize:11, color:C.dim, display:"block", marginBottom:4 }}>Reps / Tiempo</label>
-                            <input type="text" value={ex.reps} onChange={e=>updateEx(ex.id,blockName,"reps",e.target.value)}
-                              style={{...inp, textAlign:"center", fontWeight:700, padding:"8px"}}/>
-                          </div>
-                        </div>
+                    {exs.map(ex=>(
+                      <div key={ex.id} style={{display:"flex",alignItems:"center",gap:8,background:C.card,border:`1px solid ${C.border}`,borderRadius:9,padding:"7px 10px",marginBottom:5}}>
+                        <span style={{flex:1,color:C.text,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ex.name}</span>
+                        <input value={ex.sets} onChange={e=>updateEx(ex.id,b,"sets",e.target.value)} style={{width:32,background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,padding:"2px 4px",fontSize:12,color:C.accent,fontWeight:700,textAlign:"center",outline:"none"}}/>
+                        <span style={{color:C.dim,fontSize:11}}>×</span>
+                        <input value={ex.reps} onChange={e=>updateEx(ex.id,b,"reps",e.target.value)} style={{width:36,background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,padding:"2px 4px",fontSize:12,color:C.accent,fontWeight:700,textAlign:"center",outline:"none"}}/>
+                        <button onClick={()=>removeEx(ex,b)} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",display:"flex",padding:2,flexShrink:0}}>{I.trash}</button>
                       </div>
                     ))}
                   </div>
@@ -564,26 +892,12 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
             </div>
           )}
 
-          {/* Duration selector */}
-          <div style={{marginBottom:14}}>
-            <label style={{fontSize:11,fontWeight:700,color:C.dim,letterSpacing:1.5,textTransform:"uppercase",display:"block",marginBottom:8}}>Duración del plan</label>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {DURATIONS.map(d=>(
-                <button key={d.days} onClick={()=>setDuration(d.days)}
-                  style={{padding:"6px 12px",borderRadius:20,border:`1px solid ${duration===d.days?C.accent:C.border}`,background:duration===d.days?"rgba(38,166,154,0.15)":"transparent",color:duration===d.days?C.accent:C.muted,fontSize:12,fontWeight:duration===d.days?700:400,cursor:"pointer",transition:"all 0.15s"}}>
-                  {d.label}
-                </button>
-              ))}
-            </div>
-            <p style={{color:C.muted,fontSize:11,marginTop:6}}>
-              Vence: <strong style={{color:C.accentL}}>{new Date(Date.now()+duration*24*60*60*1000).toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"})}</strong>
-            </p>
-          </div>
+          {/* Note */}
+          <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Nota para el paciente (opcional)..." rows={3}
+            style={{...inp,resize:"none",marginBottom:10,fontSize:12,lineHeight:1.6}}/>
 
-          <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Nota para el paciente..." rows={3}
-            style={{...inp, resize:"none", marginBottom:12, lineHeight:1.5}}/>
           <button onClick={send} disabled={!total||loading}
-            style={{ width:"100%", background:total?`linear-gradient(135deg,${C.accent},#1a7a75)`:"rgba(255,255,255,0.05)", border:"none", borderRadius:14, padding:"13px", color:total?"#fff":C.dim, fontWeight:700, fontSize:15, cursor:total?"pointer":"not-allowed", transition:"all 0.2s", boxShadow:total?`0 4px 20px rgba(38,166,154,0.25)`:"none" }}>
+            style={{width:"100%",background:total?C.accentG:"rgba(255,255,255,.04)",border:"none",borderRadius:10,padding:11,color:total?"#fff":C.muted,fontWeight:700,fontSize:13,cursor:total?"pointer":"not-allowed",transition:"all .2s"}}>
             {loading?"Guardando...":`${isEdit?"Actualizar":"Guardar"} plan · ${total} ejercicios`}
           </button>
         </div>
@@ -592,1359 +906,314 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
   );
 }
 
+// ─── AGENDA ───────────────────────────────────────────────────────────────────
+function AgendaView({user}){
+  const [appointments,setAppts]=useState([]);
+  const [weekOffset,setWeek]=useState(0);
+  const [showForm,setForm]=useState(null);
+  const [form,setF]=useState({patient_name:"",type:"Presencial"});
+  const [loading,setLoad]=useState(true);
 
-// ─── PDF EXPORT ────────────────────────────────────────────────────────────────
-function exportPDF(patient, prescription) {
-  if (!prescription) return;
+  useEffect(()=>{load();},[]);
+  const load=async()=>{const{data}=await supabase.from("appointments").select("*").order("date",{ascending:true});setAppts(data||[]);setLoad(false);};
 
-  const BLOCK_COLORS = {
-    "Terapia":                "#ef5350",
-    "Calentamiento / Activación": "#ffa726",
-    "Trabajo central":        "#66bb6a",
-    "Sin bloque":             "#7c8db5",
-  };
+  const today=new Date();today.setHours(0,0,0,0);
+  const startOfWeek=new Date(today);startOfWeek.setDate(today.getDate()-today.getDay()+1+weekOffset*7);
+  const days=Array.from({length:7},(_,i)=>{const d=new Date(startOfWeek);d.setDate(startOfWeek.getDate()+i);return d;});
+  const HOURS=Array.from({length:13},(_,i)=>`${i+7}:00`);
 
-  const blocks = {};
-  (prescription.exercises || []).forEach(ex => {
-    const b = ex.block || "Sin bloque";
-    if (!blocks[b]) blocks[b] = [];
-    blocks[b].push(ex);
-  });
+  const getAppts=(date,hour)=>{const ds=localDateStr(date);return appointments.filter(a=>a.date===ds&&a.time===hour);};
+  const addAppt=async()=>{if(!form.patient_name||!showForm)return;await supabase.from("appointments").insert({therapist_id:user.id,patient_name:form.patient_name,type:form.type,date:showForm.date,time:showForm.time,status:"confirmada"});setForm(null);setF({patient_name:"",type:"Presencial"});load();};
+  const delAppt=async(id,e)=>{e.stopPropagation();if(!window.confirm("¿Eliminar cita?"))return;await supabase.from("appointments").delete().eq("id",id);load();};
 
-  const blockOrder = ["Terapia","Calentamiento / Activación","Trabajo central","Sin bloque"];
-  const date = new Date(prescription.created_at).toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"});
+  const monthName=startOfWeek.toLocaleDateString("es-CO",{month:"long",year:"numeric"});
 
-  let html = `
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-      <meta charset="utf-8"/>
-      <title>Plan de ejercicios – ${patient.name}</title>
-      <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        * { font-family: 'Inter', sans-serif; box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #fff; color: #1a1a2e; padding: 32px; max-width: 800px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 2px solid #26a69a; margin-bottom: 24px; }
-        .logo { display: flex; align-items: center; gap: 10px; }
-        .logo-box { width: 40px; height: 40px; background: linear-gradient(135deg,#26a69a,#00796b); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 18px; }
-        .logo-name { font-size: 20px; font-weight: 800; color: #1a1a2e; }
-        .patient-info h1 { font-size: 22px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
-        .patient-info p { font-size: 13px; color: #666; }
-        .meta { text-align: right; }
-        .meta p { font-size: 12px; color: #888; }
-        .note-box { background: #e8f5e9; border-left: 3px solid #26a69a; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: #1b5e20; }
-        .block-title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; margin-top: 20px; }
-        .block-dot { width: 10px; height: 10px; border-radius: 50%; }
-        .block-label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.8px; }
-        .ex-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #f8f9fa; border-radius: 8px; margin-bottom: 6px; }
-        .ex-name { font-weight: 600; font-size: 14px; }
-        .ex-cat { font-size: 11px; color: #888; margin-top: 2px; }
-        .ex-dose { font-weight: 700; font-size: 14px; color: #26a69a; white-space: nowrap; }
-        .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; font-size: 11px; color: #aaa; }
-        @media print { body { padding: 20px; } }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <div>
-          <div class="logo" style="margin-bottom:10px">
-            <div class="logo-box">F</div>
-            <span class="logo-name">FisioApp</span>
-          </div>
-          <div class="patient-info">
-            <h1>${patient.name}</h1>
-            <p>${patient.condition || ""}${patient.age ? " · " + patient.age + " años" : ""}</p>
-          </div>
-        </div>
-        <div class="meta">
-          <p><strong>Plan de ejercicios</strong></p>
-          <p>${date}</p>
-          <p>${prescription.exercises?.length || 0} ejercicios</p>
-        </div>
-      </div>
-      ${prescription.note ? '<div class="note-box">📋 ' + prescription.note + '</div>' : ''}
-  `;
-
-  blockOrder.forEach(blockName => {
-    const exList = blocks[blockName];
-    if (!exList || !exList.length) return;
-    const color = BLOCK_COLORS[blockName] || "#7c8db5";
-    html += `
-      <div class="block-title">
-        <div class="block-dot" style="background:${color}"></div>
-        <span class="block-label" style="color:${color}">${blockName}</span>
-      </div>
-    `;
-    exList.forEach((ex, i) => {
-      html += `
-        <div class="ex-row">
-          <div>
-            <div class="ex-name">${i+1}. ${ex.name}</div>
-            <div class="ex-cat">${ex.category || ""}</div>
-            ${ex.description ? '<div style="font-size:12px;color:#666;margin-top:3px">' + ex.description + '</div>' : ''}
-          </div>
-          <div class="ex-dose">${ex.sets} × ${ex.reps}</div>
-        </div>
-      `;
-    });
-  });
-
-  html += `
-      <div class="footer">
-        <span>Generado por FisioApp</span>
-        <span>${new Date().toLocaleDateString("es-CO")}</span>
-      </div>
-    </body></html>
-  `;
-
-  const win = window.open('', '_blank');
-  win.document.write(html);
-  win.document.close();
-  setTimeout(() => win.print(), 500);
-}
-
-
-// SESSION NOTES VIEW
-function SessionNotesView({ patient, user }) {
-  const [notes,setNotes]   = useState([]);
-  const [loading,setLoad]  = useState(true);
-  const [text,setText]     = useState("");
-  const [date,setDate]     = useState(new Date().toISOString().split("T")[0]);
-  const [saving,setSaving] = useState(false);
-
-  useEffect(()=>{ loadNotes(); },[patient.id]);
-
-  const loadNotes = async () => {
-    const {data} = await supabase.from("session_notes").select("*")
-      .eq("patient_id",patient.id).order("session_date",{ascending:false});
-    setNotes(data||[]); setLoad(false);
-  };
-
-  const saveNote = async () => {
-    if(!text.trim()) return;
-    setSaving(true);
-    await supabase.from("session_notes").insert({
-      therapist_id:user.id, patient_id:patient.id,
-      note:text.trim(), session_date:date
-    });
-    setText(""); setSaving(false); loadNotes();
-  };
-
-  const deleteNote = async (id) => {
-    if(!window.confirm("¿Eliminar esta nota?")) return;
-    await supabase.from("session_notes").delete().eq("id",id);
-    loadNotes();
-  };
-
-  return (
+  return(
     <div>
-      {/* New note form */}
-      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:18,marginBottom:14}}>
-        <p style={{color:C.muted,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,margin:"0 0 12px"}}>Nueva nota de sesión</p>
-        <div style={{display:"grid",gap:10}}>
-          <div>
-            <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Fecha de sesión</label>
-            <input type="date" value={date} onChange={e=>setDate(e.target.value)}
-              style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"9px 13px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/>
+      {showForm&&(
+        <Modal title={`Cita — ${showForm.date} ${showForm.time}`} onClose={()=>setForm(null)} maxWidth={360}>
+          <div style={{display:"grid",gap:10,marginBottom:16}}>
+            <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Paciente</label><input value={form.patient_name} onChange={e=>setF({...form,patient_name:e.target.value})} placeholder="Nombre del paciente" style={inp}/></div>
+            <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Tipo</label>
+              <select value={form.type} onChange={e=>setF({...form,type:e.target.value})} style={inp}>
+                {["Presencial","Domicilio","Virtual"].map(t=><option key={t}>{t}</option>)}
+              </select>
+            </div>
           </div>
-          <div>
-            <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Observaciones clínicas</label>
-            <textarea value={text} onChange={e=>setText(e.target.value)} rows={4}
-              placeholder="Evolución del paciente, ejercicios realizados, observaciones, próximos objetivos..."
-              style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"10px 13px",fontSize:14,color:C.text,outline:"none",width:"100%",resize:"none",lineHeight:1.6}}/>
+          <div style={{display:"flex",gap:10}}>
+            <Btn onClick={addAppt} variant="primary" style={{flex:1}}>Guardar</Btn>
+            <Btn onClick={()=>setForm(null)} variant="ghost">Cancelar</Btn>
           </div>
-          <button onClick={saveNote} disabled={!text.trim()||saving}
-            style={{background:text.trim()?C.accentG:"rgba(255,255,255,0.04)",border:"none",borderRadius:12,padding:11,color:text.trim()?"#fff":C.dim,fontWeight:700,cursor:text.trim()?"pointer":"default",fontSize:14}}>
-            {saving?"Guardando...":"Guardar nota"}
-          </button>
+        </Modal>
+      )}
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:10}}>
+        <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:20,margin:0,textTransform:"capitalize"}}>{monthName}</h2>
+        <div style={{display:"flex",gap:6}}>
+          <Btn onClick={()=>setWeek(0)} variant="ghost" style={{fontSize:12}}>Hoy</Btn>
+          <Btn onClick={()=>setWeek(w=>w-1)} variant="ghost" style={{padding:"6px 10px"}}>‹</Btn>
+          <Btn onClick={()=>setWeek(w=>w+1)} variant="ghost" style={{padding:"6px 10px"}}>›</Btn>
         </div>
       </div>
 
-      {/* Notes list */}
-      {loading ? <Spinner/> : notes.length===0 ? (
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:40,textAlign:"center"}}>
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="1.4" style={{marginBottom:12}}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          <p style={{color:C.muted,fontSize:14}}>Sin notas de sesión aún</p>
-        </div>
-      ) : (
-        <div style={{display:"grid",gap:10}}>
-          {notes.map(n=>(
-            <div key={n.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.accentL} strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                  <span style={{color:C.accentL,fontSize:13,fontWeight:600}}>{new Date(n.session_date+"T12:00").toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long"})}</span>
-                </div>
-                <button onClick={()=>deleteNote(n.id)} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",display:"flex",alignItems:"center",padding:4}}>
-                  {Icon.trash}
-                </button>
-              </div>
-              <p style={{color:C.text,fontSize:14,lineHeight:1.65,margin:0,whiteSpace:"pre-wrap"}}>{n.note}</p>
-            </div>
-          ))}
+      {loading?<Spinner/>:(
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:640}}>
+            <thead>
+              <tr>
+                <th style={{width:50,padding:"6px 8px",color:C.muted,fontSize:11,fontWeight:600,textAlign:"left"}}></th>
+                {days.map((d,i)=>{const isT=localDateStr(d)===localDateStr(new Date());return(
+                  <th key={i} style={{padding:"6px 8px",textAlign:"center",color:isT?C.accent:C.muted,fontSize:11,fontWeight:isT?700:500,background:isT?"rgba(38,166,154,.06)":"transparent"}}>
+                    <div>{["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"][i]}</div>
+                    <div style={{fontSize:16,fontWeight:700,color:isT?C.accent:C.text}}>{d.getDate()}</div>
+                  </th>
+                );})}
+              </tr>
+            </thead>
+            <tbody>
+              {HOURS.map(hour=>(
+                <tr key={hour}>
+                  <td style={{padding:"4px 8px",color:C.dim,fontSize:10,verticalAlign:"top",paddingTop:6,whiteSpace:"nowrap"}}>{hour}</td>
+                  {days.map((d,j)=>{
+                    const appts=getAppts(d,hour);
+                    const isT=localDateStr(d)===localDateStr(new Date());
+                    const canAdd=appts.length<3;
+                    const ds=localDateStr(d);
+                    return(
+                      <td key={j} onClick={()=>canAdd&&setForm({date:ds,time:hour})}
+                        style={{padding:3,verticalAlign:"top",minHeight:36,height:36,borderTop:`1px solid ${C.border}`,cursor:canAdd?"pointer":"default",background:isT?"rgba(38,166,154,.03)":"transparent",transition:"background .15s"}}
+                        onMouseEnter={e=>{if(canAdd)e.currentTarget.style.background=isT?"rgba(38,166,154,.08)":"rgba(255,255,255,.02)";}}
+                        onMouseLeave={e=>{e.currentTarget.style.background=isT?"rgba(38,166,154,.03)":"transparent";}}>
+                        {appts.map(a=>(
+                          <div key={a.id} style={{background:C.accentG,borderRadius:5,padding:"2px 6px",marginBottom:2,display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
+                            <span style={{fontSize:10,color:"#fff",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{a.patient_name}</span>
+                            <button onClick={e=>delAppt(a.id,e)} style={{background:"transparent",border:"none",color:"rgba(255,255,255,.7)",cursor:"pointer",padding:0,fontSize:11,lineHeight:1,flexShrink:0}}>×</button>
+                          </div>
+                        ))}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
   );
 }
 
-// ─── PATIENT PROFILE ──────────────────────────────────────────────────────────
-function PatientProfile({ patient, user, onBack, onPrescribe, onApprove }) {
-  const [prescriptions,setPrescriptions] = useState([]);
-  const [loading,setLoading]             = useState(true);
-  const [showInvite,setShowInvite]       = useState(false);
-  const [activePres,setActivePres]       = useState(null);
-  const [activeTab,setActiveTab]         = useState("plans");
-  const [editPres,setEditPres]           = useState(null);
-  const [logs,setLogs]                   = useState([]);
+// ─── MESSAGES VIEW ────────────────────────────────────────────────────────────
+function MessagesView({user}){
+  const [threads,setThreads]=useState([]);
+  const [active,setActive]=useState(null);
+  const [messages,setMessages]=useState([]);
+  const [reply,setReply]=useState("");
+  const [loading,setLoad]=useState(true);
+  const bottomRef=useRef();
 
-  useEffect(()=>{
-    Promise.all([
-      supabase.from("prescriptions").select("*").eq("patient_id",patient.id).order("created_at",{ascending:false}),
-      supabase.from("exercise_logs").select("*").eq("patient_id",patient.id),
-    ]).then(([{data:p},{data:l}])=>{ setPrescriptions(p||[]); setLogs(l||[]); setLoading(false); });
-  },[patient.id]);
+  useEffect(()=>{loadThreads();},[]);
+  useEffect(()=>{if(active)loadMessages(active);},[active]);
+  useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
 
-  const deletePrescription = async (id) => {
-    if(!window.confirm("¿Eliminar este plan?")) return;
-    await supabase.from("prescriptions").delete().eq("id",id);
-    setPrescriptions(prev=>prev.filter(p=>p.id!==id));
+  const loadThreads=async()=>{
+    const{data}=await supabase.from("messages").select("*").order("created_at",{ascending:false});
+    const map={};(data||[]).forEach(m=>{if(!map[m.patient_name])map[m.patient_name]={name:m.patient_name,last:m.content,unread:0,ts:m.created_at};if(m.unread&&m.sender==="patient")map[m.patient_name].unread++;});
+    setThreads(Object.values(map));setLoad(false);
+  };
+  const loadMessages=async(name)=>{
+    await supabase.from("messages").update({unread:false}).eq("patient_name",name).eq("sender","patient");
+    const{data}=await supabase.from("messages").select("*").eq("patient_name",name).order("created_at",{ascending:true});
+    setMessages(data||[]);loadThreads();
+  };
+  const send=async()=>{
+    const t=reply.trim();if(!t)return;
+    setReply("");
+    await supabase.from("messages").insert({therapist_id:user.id,patient_name:active,content:t,sender:"therapist",unread:true});
+    loadMessages(active);
   };
 
-  if(editPres) return <PrescribeView user={user} patient={patient} onBack={()=>setEditPres(null)} existingPrescription={editPres}/>;
-
-  const last7 = Array.from({length:7},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-(6-i)); return d; });
-  let streak=0;
-  for(let i=0;i<30;i++){
-    const d=new Date(); d.setDate(d.getDate()-i);
-    if(logs.some(l=>new Date(l.completed_at).toDateString()===d.toDateString())) streak++;
-    else if(i>0) break;
-  }
-
-  return (
-    <div>
-      {showInvite && <InviteModal patient={patient} onClose={()=>setShowInvite(false)}/>}
-
-      <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, color:C.muted, background:"none", border:"none", cursor:"pointer", fontSize:14, fontWeight:500, marginBottom:20 }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-        Volver
-      </button>
-
-      {/* Profile card */}
-      <div style={{ background:"linear-gradient(135deg,#0d2929,#112020)", border:`1px solid rgba(38,166,154,0.2)`, borderRadius:24, padding:24, marginBottom:16, position:"relative", overflow:"hidden" }}>
-        <div style={{ position:"absolute", top:-30, right:-30, width:120, height:120, borderRadius:"50%", background:"rgba(38,166,154,0.06)" }}/>
-        <div style={{ position:"relative", display:"flex", gap:16, alignItems:"center" }}>
-          <Avatar name={patient.name} size={64}/>
-          <div style={{ flex:1 }}>
-            <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:22, margin:"0 0 4px" }}>{patient.name}</h2>
-            <p style={{ color:C.muted, fontSize:14, margin:"0 0 6px" }}>{patient.condition||"Sin diagnóstico"}</p>
-            {patient.age && <p style={{ color:C.dim, fontSize:12, margin:0 }}>{patient.age} años{patient.email?` · ${patient.email}`:""}</p>}
-            <div style={{ marginTop:10 }}>
-              {patient.invite_status==="aprobado"
-                ? <span style={{ background:"rgba(102,187,106,0.15)", border:"1px solid rgba(102,187,106,0.3)", color:C.success, fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>Acceso activo</span>
-                : patient.invite_status==="pendiente"
-                ? <span style={{ background:"rgba(255,167,38,0.12)", border:"1px solid rgba(255,167,38,0.3)", color:C.warn, fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>Solicitud pendiente</span>
-                : <span style={{ background:"rgba(239,83,80,0.1)", border:"1px solid rgba(239,83,80,0.2)", color:C.danger, fontSize:11, padding:"3px 10px", borderRadius:20, fontWeight:600 }}>Sin acceso</span>
-              }
-            </div>
+  return(
+    <div style={{display:"grid",gridTemplateColumns:active?"280px 1fr":"1fr",gap:16,height:"calc(100vh - 80px)",maxWidth:900}}>
+      {/* Thread list */}
+      <div>
+        <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:20,margin:"0 0 16px"}}>Mensajes</h2>
+        {loading?<Spinner/>:threads.length===0?<p style={{color:C.muted,fontSize:13}}>Sin conversaciones</p>:(
+          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+            {threads.map(t=>(
+              <div key={t.name} onClick={()=>setActive(t.name)}
+                style={{display:"flex",gap:10,alignItems:"center",background:active===t.name?C.card:C.surface,border:`1px solid ${active===t.name?C.accent+"44":C.border}`,borderRadius:10,padding:"10px 12px",cursor:"pointer",transition:"all .15s"}}>
+                <Avatar name={t.name} size={34}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <p style={{color:C.text,fontWeight:600,fontSize:13,margin:0}}>{t.name}</p>
+                    {t.unread>0&&<span style={{background:C.accent,color:"#fff",borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,flexShrink:0}}>{t.unread}</span>}
+                  </div>
+                  <p style={{color:C.muted,fontSize:11,margin:"2px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.last}</p>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
-        <div style={{ display:"flex", gap:8, marginTop:16, flexWrap:"wrap" }}>
-          <button onClick={()=>onPrescribe(patient)} style={{ flex:1, background:C.accentG, border:"none", borderRadius:12, padding:11, color:"#fff", fontWeight:700, cursor:"pointer", fontSize:14, minWidth:140 }}>Nuevo plan</button>
-          {patient.invite_status!=="aprobado" && (
-            <button onClick={()=>onApprove(patient.id)}
-              style={{ flex:1, background:"rgba(255,167,38,0.15)", border:"1px solid rgba(255,167,38,0.35)", borderRadius:12, padding:11, color:C.warn, fontWeight:700, cursor:"pointer", fontSize:14, minWidth:120 }}>
-              Habilitar acceso
-            </button>
-          )}
-          <button onClick={()=>setShowInvite(true)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", color:C.text, cursor:"pointer", display:"flex", alignItems:"center" }}>{Icon.link}</button>
-        </div>
-      </div>
-
-      {/* Stats row */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
-        {[{v:prescriptions.length,l:"Planes",c:C.accent},{v:streak,l:"Racha",c:C.warn},{v:logs.length,l:"Completados",c:C.success}].map((s,i)=>(
-          <div key={i} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:"12px 8px", textAlign:"center" }}>
-            <div style={{ fontSize:22, fontWeight:700, color:s.c, marginTop:3 }}>{s.v}</div>
-            <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{s.l}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Tabs + PDF */}
-      <div style={{ display:"flex", gap:8, marginBottom:16, alignItems:"center" }}>
-        <div style={{ flex:1, display:"flex", gap:3, background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:3 }}>
-          {[{id:"plans",label:"Planes"},{id:"progress",label:"Progreso"},{id:"notes",label:"Notas"}].map(t=>(
-            <button key={t.id} onClick={()=>setActiveTab(t.id)}
-              style={{ flex:1, padding:"9px", borderRadius:13, border:"none", cursor:"pointer", fontWeight:600, fontSize:13, transition:"all 0.2s",
-                background: activeTab===t.id ? C.accent : "transparent",
-                color: activeTab===t.id ? "#fff" : C.muted
-              }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-        {activeTab==="plans" && prescriptions.length>0 && (
-          <button onClick={()=>exportPDF(patient, prescriptions[0])}
-            style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"9px 14px", color:C.muted, cursor:"pointer", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:6, flexShrink:0, whiteSpace:"nowrap" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Exportar PDF
-          </button>
         )}
       </div>
 
-      {/* Plans */}
-      {activeTab==="plans" && (
-        loading ? <Spinner/> : prescriptions.length===0 ? (
-          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:40, textAlign:"center" }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.5" style={{marginBottom:10}}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            <p style={{ color:C.muted }}>Sin planes prescritos</p>
+      {/* Chat */}
+      {active&&(
+        <div style={{display:"flex",flexDirection:"column",background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
+          <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+            <Avatar name={active} size={32}/>
+            <p style={{color:C.text,fontWeight:600,fontSize:14,margin:0}}>{active}</p>
+            <button onClick={()=>setActive(null)} style={{marginLeft:"auto",background:"transparent",border:"none",color:C.dim,cursor:"pointer",display:"flex",padding:4}}>{I.back}</button>
           </div>
-        ) : (
-          <div style={{ display:"grid", gap:12 }}>
-            {prescriptions.map((pres,i)=>(
-              <div key={pres.id} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, overflow:"hidden" }}>
-                <button onClick={()=>setActivePres(activePres===pres.id?null:pres.id)}
-                  style={{ width:"100%", padding:16, display:"flex", alignItems:"center", justifyContent:"space-between", background:"none", border:"none", cursor:"pointer", textAlign:"left" }}>
-                  <div>
-                    <p style={{ color:C.text, fontWeight:600, fontSize:15, margin:0 }}>{i===0?"🟢 Plan actual":`Plan #${prescriptions.length-i}`}</p>
-                    <p style={{ color:C.dim, fontSize:12, marginTop:4, display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-                      <span>{new Date(pres.created_at).toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"})} · {pres.exercises?.length||0} ejercicios</span>
-                      {pres.end_date && (()=>{
-                        const dl=Math.ceil((new Date(pres.end_date)-new Date())/(1000*60*60*24));
-                        const col=dl<0?C.danger:dl<=5?C.warn:C.success;
-                        return <span style={{fontSize:11,fontWeight:700,color:col,background:`${col}18`,border:`1px solid ${col}33`,borderRadius:8,padding:"1px 7px"}}>{dl<0?"Vencido":dl===0?"Vence hoy":`${dl}d restantes`}</span>;
-                      })()}
-                    </p>
-                  </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="2" style={{ transform:activePres===pres.id?"rotate(180deg)":"none", transition:"transform 0.2s" }}><path d="M6 9l6 6 6-6"/></svg>
-                </button>
-                {activePres===pres.id && (
-                  <div style={{ borderTop:`1px solid ${C.border}`, padding:16 }}>
-                    {/* Edit / Delete buttons */}
-                    <div style={{ display:"flex", gap:8, marginBottom:14 }}>
-                      <button onClick={async()=>{
-                        if(!window.confirm("¿Duplicar este plan?")) return;
-                        const dur=pres.duration_days||30;
-                        const sd=new Date().toISOString().split("T")[0];
-                        const ed=new Date(Date.now()+dur*24*60*60*1000).toISOString().split("T")[0];
-                        await supabase.from("prescriptions").insert({patient_id:patient.id,therapist_id:user.id,exercises:pres.exercises,note:pres.note||"",duration_days:dur,start_date:sd,end_date:ed});
-                        fetchPrescriptions();
-                      }} style={{ background:"rgba(126,87,194,0.12)", border:"1px solid rgba(126,87,194,0.25)", borderRadius:10, padding:"8px 10px", color:"#9c64f0", fontWeight:600, fontSize:12, cursor:"pointer" }}>
-                        Duplicar
-                      </button>
-                      <button onClick={async()=>{
-                        if(!window.confirm("¿Renovar este plan por el mismo período?")) return;
-                        const dur=pres.duration_days||30;
-                        const sd=new Date().toISOString().split("T")[0];
-                        const ed=new Date(Date.now()+dur*24*60*60*1000).toISOString().split("T")[0];
-                        await supabase.from("prescriptions").update({start_date:sd,end_date:ed}).eq("id",pres.id);
-                        fetchPrescriptions();
-                      }} style={{ background:"rgba(38,166,154,0.08)", border:"1px solid rgba(38,166,154,0.2)", borderRadius:10, padding:"8px 10px", color:C.accent, fontWeight:600, fontSize:12, cursor:"pointer" }}>
-                        Renovar
-                      </button>
-                      <button onClick={()=>setEditPres(pres)}
-                        style={{ flex:1, background:"rgba(38,166,154,0.15)", border:"1px solid rgba(38,166,154,0.3)", borderRadius:12, padding:"8px", color:C.accent, fontWeight:600, fontSize:13, cursor:"pointer" }}>
-                        Editar plan
-                      </button>
-                      <button onClick={()=>deletePrescription(pres.id)}
-                        style={{ background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.25)", borderRadius:12, padding:"8px 14px", color:C.danger, fontWeight:600, fontSize:13, cursor:"pointer" }}>
-                        🗑
-                      </button>
-                    </div>
-                    {pres.note && (
-                      <div style={{ background:"rgba(38,166,154,0.08)", border:"1px solid rgba(38,166,154,0.2)", borderRadius:12, padding:12, marginBottom:12, display:"flex", gap:8 }}>
-                        
-                        <p style={{ color:C.accentL, fontSize:13, margin:0 }}>{pres.note}</p>
-                      </div>
-                    )}
-                    {BLOCKS.concat(["Sin bloque"]).map(blockName=>{
-                      const exList=(pres.exercises||[]).filter(e=>(e.block||"Sin bloque")===blockName);
-                      if(!exList.length) return null;
-                      const m=BLOCK_META[blockName]||BLOCK_META["Sin bloque"];
-                      return (
-                        <div key={blockName} style={{ marginBottom:12 }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:6, background:m.bg, border:`1px solid ${m.color}33`, borderRadius:10, padding:"6px 12px", marginBottom:8 }}>
-                            <span>{m.icon}</span>
-                            <span style={{ color:m.color, fontWeight:700, fontSize:12 }}>{blockName}</span>
-                          </div>
-                          {exList.map((ex,idx)=>(
-                            <div key={idx} style={{ display:"flex", justifyContent:"space-between", background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 14px", marginBottom:6 }}>
-                              <p style={{ color:C.text, fontSize:13, fontWeight:500, margin:0 }}>{ex.name}</p>
-                              <p style={{ color:C.accent, fontSize:13, fontWeight:700, margin:0, flexShrink:0 }}>{ex.sets}×{ex.reps}</p>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+          <div style={{flex:1,overflowY:"auto",padding:"14px 16px",display:"flex",flexDirection:"column",gap:8}}>
+            {messages.map(m=>(
+              <div key={m.id} style={{display:"flex",justifyContent:m.sender==="therapist"?"flex-end":"flex-start"}}>
+                <div style={{maxWidth:"72%",background:m.sender==="therapist"?C.accentG:C.card,border:m.sender==="therapist"?"none":`1px solid ${C.border}`,borderRadius:13,borderBottomRightRadius:m.sender==="therapist"?3:13,borderBottomLeftRadius:m.sender==="therapist"?13:3,padding:"9px 13px",fontSize:13,color:C.text,lineHeight:1.5}}>
+                  {m.content}
+                </div>
               </div>
             ))}
+            <div ref={bottomRef}/>
           </div>
-        )
-      )}
-
-      {/* Progress */}
-      {activeTab==="notes" && (
-        <SessionNotesView patient={patient} user={user}/>
-      )}
-
-      {activeTab==="progress" && (
-        <div>
-          {logs.length===0 ? (
-            <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:40, textAlign:"center" }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.5" style={{marginBottom:10}}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-              <p style={{ color:C.muted }}>Aún no ha completado ejercicios</p>
-            </div>
-          ) : (
-            <>
-              <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:20, marginBottom:12 }}>
-                <p style={{ fontSize:11, fontWeight:700, color:C.dim, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>Últimos 7 días</p>
-                <div style={{ display:"flex", alignItems:"flex-end", gap:8, height:60 }}>
-                  {last7.map((day,i)=>{
-                    const count=logs.filter(l=>new Date(l.completed_at).toDateString()===day.toDateString()).length;
-                    const isToday=day.toDateString()===new Date().toDateString();
-                    const maxC=Math.max(...last7.map(d=>logs.filter(l=>new Date(l.completed_at).toDateString()===d.toDateString()).length),1);
-                    const dayShort=["D","L","M","X","J","V","S"];
-                    return (
-                      <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-                        <div style={{ width:"100%", borderRadius:6, minHeight:3, height:`${count>0?Math.max((count/maxC)*44,8):3}px`, background:isToday?C.accent:count>0?"rgba(38,166,154,0.4)":C.border }}/>
-                        <span style={{ fontSize:10, color:isToday?C.accent:C.dim }}>{dayShort[day.getDay()]}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:20 }}>
-                <p style={{ fontSize:11, fontWeight:700, color:C.dim, letterSpacing:2, textTransform:"uppercase", marginBottom:12 }}>Consistencia · 30 días</p>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                  {Array.from({length:30},(_,i)=>{
-                    const d=new Date(); d.setDate(d.getDate()-(29-i));
-                    const count=logs.filter(l=>new Date(l.completed_at).toDateString()===d.toDateString()).length;
-                    return <div key={i} style={{ width:20, height:20, borderRadius:5, background:count===0?C.border:count<=2?"rgba(38,166,154,0.3)":count<=5?"rgba(38,166,154,0.6)":"rgba(38,166,154,0.9)" }}/>;
-                  })}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── PATIENTS LIST ─────────────────────────────────────────────────────────────
-function PatientsView({ user, onPrescribe, onViewProfile, initialFilter, onClearFilter }) {
-  const [patients,setPatients]     = useState([]);
-  const [loading,setLoading]       = useState(true);
-  const [search,setSearch]         = useState("");
-  const [statusFilter,setStatusFilter] = useState(initialFilter||null);
-  const [showForm,setShowForm]     = useState(false);
-  const [showInvite,setShowInvite] = useState(null);
-  const [form,setForm] = useState({name:"",age:"",condition:"",next_session:"",email:""});
-
-  useEffect(()=>{ if(initialFilter) setStatusFilter(initialFilter); },[initialFilter]);
-  useEffect(()=>{ fetchPatients(); },[]);
-
-  const fetchPatients = async () => {
-    const {data} = await supabase.from("patients").select("*").order("created_at",{ascending:false});
-    setPatients(data||[]); setLoading(false);
-  };
-
-  const approvePatient = async (id) => {
-    await supabase.from("patients").update({invite_status:"aprobado"}).eq("id",id);
-    fetchPatients();
-  };
-
-  const [editPatient,setEditPatient] = useState(null);
-
-  const saveEdit = async () => {
-    if(!editPatient||!form.name) return;
-    await supabase.from("patients").update({
-      name:form.name, age:parseInt(form.age)||null,
-      condition:form.condition, email:form.email
-    }).eq("id",editPatient.id);
-    setEditPatient(null);
-    setForm({name:"",age:"",condition:"",next_session:"",email:""});
-    fetchPatients();
-  };
-
-  const addPatient = async () => {
-    if(!form.name) return;
-    const token = crypto.randomUUID();
-    const {data,error} = await supabase.from("patients")
-      .insert({...form,therapist_id:user.id,age:parseInt(form.age)||null,invite_token:token})
-      .select().single();
-    setForm({name:"",age:"",condition:"",next_session:"",email:""});
-    setShowForm(false); fetchPatients();
-    if(data&&!error) setShowInvite(data);
-  };
-
-  const filtered = patients.filter(p=>{
-    const ms = p.name.toLowerCase().includes(search.toLowerCase());
-    const mf = !statusFilter || p.invite_status===statusFilter;
-    return ms && mf;
-  });
-
-  return (
-    <div>
-      {showInvite && <InviteModal patient={showInvite} onClose={()=>setShowInvite(null)}/>}
-
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
-        <div>
-          <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:26, margin:0 }}>Mis Pacientes</h2>
-          <p style={{ color:C.muted, fontSize:13, marginTop:4 }}>{patients.length} pacientes</p>
-        </div>
-        <button onClick={()=>setShowForm(!showForm)}
-          style={{ background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:14, padding:"10px 18px", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:14, boxShadow:`0 4px 16px rgba(38,166,154,0.25)` }}>
-          + Nuevo
-        </button>
-      </div>
-
-      {statusFilter && (
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,background:"rgba(255,167,38,0.1)",border:"1px solid rgba(255,167,38,0.3)",borderRadius:12,padding:"8px 14px"}}>
-          <span style={{color:C.warn,fontSize:13,fontWeight:600}}>Filtrando: {statusFilter==="pendiente"?"Pendientes de aprobación":statusFilter}</span>
-          <button onClick={()=>{setStatusFilter(null);if(onClearFilter)onClearFilter();}} style={{background:"transparent",border:"none",color:C.warn,cursor:"pointer",fontSize:16,marginLeft:"auto",padding:"0 4px"}}>✕</button>
-        </div>
-      )}
-
-      {showForm && (
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:20, marginBottom:16 }}>
-          <h3 style={{ color:C.text, fontSize:15, fontWeight:600, margin:"0 0 14px" }}>Nuevo paciente</h3>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-            <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre completo *" style={{...inp,gridColumn:"1/-1"}}/>
-            <input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Correo del paciente" type="email" style={{...inp,gridColumn:"1/-1"}}/>
-            <input value={form.age} onChange={e=>setForm({...form,age:e.target.value})} placeholder="Edad" type="number" style={inp}/>
-            <input value={form.next_session} onChange={e=>setForm({...form,next_session:e.target.value})} type="date" style={inp}/>
-            <input value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} placeholder="Diagnóstico" style={{...inp,gridColumn:"1/-1"}}/>
-            <div style={{ gridColumn:"1/-1", display:"flex", gap:10 }}>
-              <button onClick={addPatient} style={{ flex:1, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:12, padding:"11px", color:"#fff", fontWeight:700, cursor:"pointer" }}>Guardar y generar link</button>
-              <button onClick={()=>setShowForm(false)} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 16px", color:C.muted, cursor:"pointer" }}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {editPatient && (
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:50,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:20,padding:24,width:"100%",maxWidth:420}}>
-            <h3 style={{color:C.text,fontWeight:700,fontSize:17,margin:"0 0 16px"}}>Editar paciente</h3>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              <div style={{gridColumn:"1/-1"}}><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Nombre *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:11,padding:"9px 13px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/></div>
-              <div style={{gridColumn:"1/-1"}}><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Correo</label><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} type="email" style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:11,padding:"9px 13px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/></div>
-              <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Edad</label><input value={form.age} onChange={e=>setForm({...form,age:e.target.value})} type="number" style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:11,padding:"9px 13px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/></div>
-              <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Diagnóstico</label><input value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:11,padding:"9px 13px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/></div>
-            </div>
-            <div style={{display:"flex",gap:10,marginTop:14}}>
-              <button onClick={saveEdit} style={{flex:1,background:C.accentG,border:"none",borderRadius:12,padding:11,color:"#fff",fontWeight:700,cursor:"pointer"}}>Guardar</button>
-              <button onClick={()=>{setEditPatient(null);setForm({name:"",age:"",condition:"",next_session:"",email:""}); }} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 16px",color:C.muted,cursor:"pointer"}}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div style={{ position:"relative", marginBottom:14 }}>
-        <svg style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar paciente..." style={{...inp,paddingLeft:38}}/>
-      </div>
-
-      {loading ? <Spinner/> : filtered.length===0 ? (
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:48, textAlign:"center" }}>
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.3" style={{marginBottom:12}}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-          <p style={{ color:C.muted }}>No hay pacientes aún</p>
-        </div>
-      ) : (
-        <div style={{ display:"grid", gap:10 }}>
-          {filtered.map(p=>(
-            <div key={p.id} onClick={()=>onViewProfile(p)}
-              style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:16, cursor:"pointer", transition:"all 0.2s" }}
-              onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent+"55"}
-              onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
-              <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-                <Avatar name={p.name} size={48}/>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                    <span style={{ color:C.text, fontWeight:600, fontSize:15 }}>{p.name}</span>
-                    {p.invite_status==="aprobado" && <span style={{ fontSize:10, background:"rgba(52,211,153,0.15)", color:"#34d399", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>Activo</span>}
-                    {p.invite_status==="pendiente" && <span style={{ fontSize:10, background:"rgba(251,191,36,0.15)", color:"#fbbf24", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>Pendiente</span>}
-                    {!p.invite_status && !p.user_id && <span style={{ fontSize:10, background:"rgba(239,83,80,0.1)", color:"#ef5350", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>Sin acceso</span>}
-                  </div>
-                  <p style={{ color:C.muted, fontSize:13, marginTop:3 }}>{p.condition||"Sin diagnóstico"}{p.age?` · ${p.age} años`:""}</p>
-                </div>
-                <div style={{ display:"flex", gap:8 }} onClick={e=>e.stopPropagation()}>
-                  {p.invite_status!=="aprobado" && (
-                    <button onClick={()=>approvePatient(p.id)}
-                      style={{ background:"rgba(251,191,36,0.15)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:12, padding:"7px 12px", color:"#fbbf24", fontWeight:700, fontSize:13, cursor:"pointer" }}>
-                      Aprobar
-                    </button>
-                  )}
-                  <button onClick={()=>onPrescribe(p)} style={{ background:"rgba(38,166,154,0.15)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:10, padding:"6px 10px", color:C.accent, fontWeight:600, fontSize:12, cursor:"pointer" }}>Prescribir</button>
-                  <button onClick={e=>{e.stopPropagation();setEditPatient(p);setForm({name:p.name,age:p.age||"",condition:p.condition||"",next_session:"",email:p.email||""});}} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"6px 9px", color:C.muted, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center" }}>{Icon.edit}</button>
-                  {p.invite_token && <button onClick={()=>setShowInvite(p)} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"7px 10px", color:C.muted, fontSize:13, cursor:"pointer" }}>{Icon.link}</button>}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── CALENDAR AGENDA ──────────────────────────────────────────────────────────
-const HOURS = Array.from({length:13},(_,i)=>`${(7+i).toString().padStart(2,"0")}:00`); // 07:00 - 19:00
-const MAX_PER_SLOT = 3;
-
-function AgendaView({ user }) {
-  const [appointments,setAppointments] = useState([]);
-  const [loading,setLoading]           = useState(true);
-  const [weekOffset,setWeekOffset]     = useState(0);
-  const [showForm,setShowForm]         = useState(null); // {date,time}
-  const [form,setForm]                 = useState({patient_name:"",type:"Presencial"});
-
-  useEffect(()=>{ fetchAppointments(); },[]);
-
-  const fetchAppointments = async () => {
-    const {data} = await supabase.from("appointments").select("*").order("date",{ascending:true});
-    setAppointments(data||[]); setLoading(false);
-  };
-
-  // Build week days
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  const startOfWeek = new Date(today);
-  startOfWeek.setDate(today.getDate() - today.getDay() + 1 + weekOffset*7); // Monday
-
-  const weekDays = Array.from({length:7},(_,i)=>{
-    const d = new Date(startOfWeek);
-    d.setDate(startOfWeek.getDate()+i);
-    return d;
-  });
-
-  const getAppts = (date,hour) => {
-    const dateStr = localDateStr(date);
-    return appointments.filter(a=>a.date===dateStr&&a.time===hour);
-  };
-
-  const addAppointment = async () => {
-    if(!form.patient_name||!showForm) return;
-    await supabase.from("appointments").insert({
-      therapist_id:user.id, patient_name:form.patient_name, type:form.type,
-      date:showForm.date, time:showForm.time, status:"confirmada"
-    });
-    setShowForm(null); setForm({patient_name:"",type:"Presencial"});
-    fetchAppointments();
-  };
-
-  const deleteAppt = async (id,e) => {
-    e.stopPropagation();
-    await supabase.from("appointments").delete().eq("id",id);
-    fetchAppointments();
-  };
-
-  const dayNames = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
-  const typeColor = { Presencial:`rgba(59,130,246,0.8)`, Videollamada:`rgba(139,92,246,0.8)` };
-
-  const weekLabel = () => {
-    const opts = {day:"numeric",month:"short"};
-    return `${weekDays[0].toLocaleDateString("es-CO",opts)} – ${weekDays[6].toLocaleDateString("es-CO",opts)}`;
-  };
-
-  return (
-    <div>
-      {/* Calendar form modal */}
-      {showForm && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", zIndex:50, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:24, width:"100%", maxWidth:360 }}>
-            <h3 style={{ color:C.text, fontWeight:600, margin:"0 0 4px" }}>Nueva cita</h3>
-            <p style={{ color:C.muted, fontSize:13, margin:"0 0 18px" }}>{showForm.date} · {showForm.time}</p>
-            <div style={{ display:"grid", gap:10, marginBottom:14 }}>
-              <input value={form.patient_name} onChange={e=>setForm({...form,patient_name:e.target.value})} placeholder="Nombre del paciente *" style={inp}/>
-              <select value={form.type} onChange={e=>setForm({...form,type:e.target.value})} style={inp}>
-                <option>Presencial</option><option>Videollamada</option>
-              </select>
-            </div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={addAppointment} style={{ flex:1, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:12, padding:11, color:"#fff", fontWeight:700, cursor:"pointer" }}>Guardar</button>
-              <button onClick={()=>setShowForm(null)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 16px", color:C.muted, cursor:"pointer" }}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
-        <div>
-          <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:26, margin:0 }}>Agenda</h2>
-          <p style={{ color:C.muted, fontSize:13, marginTop:4 }}>{weekLabel()}</p>
-        </div>
-        <div style={{ display:"flex", gap:8 }}>
-          <button onClick={()=>setWeekOffset(w=>w-1)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px 12px", color:C.muted, cursor:"pointer", fontSize:16 }}>←</button>
-          <button onClick={()=>setWeekOffset(0)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px 12px", color:C.accent, cursor:"pointer", fontSize:13, fontWeight:600 }}>Hoy</button>
-          <button onClick={()=>setWeekOffset(w=>w+1)} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:10, padding:"8px 12px", color:C.muted, cursor:"pointer", fontSize:16 }}>→</button>
-        </div>
-      </div>
-
-      {loading ? <Spinner/> : (
-        <div style={{ overflowX:"auto" }}>
-          <div style={{ minWidth:700 }}>
-            {/* Day headers */}
-            <div style={{ display:"grid", gridTemplateColumns:`64px repeat(7,1fr)`, gap:0, marginBottom:2 }}>
-              <div/>
-              {weekDays.map((d,i)=>{
-                const isToday=localDateStr(d)===localDateStr(new Date());
-                return (
-                  <div key={i} style={{ textAlign:"center", padding:"8px 4px", borderRadius:12, background:isToday?"rgba(38,166,154,0.12)":"transparent" }}>
-                    <p style={{ color:C.muted, fontSize:11, fontWeight:600, margin:0 }}>{dayNames[i]}</p>
-                    <p style={{ color:isToday?C.accent:C.text, fontSize:20, fontWeight:700, margin:"2px 0 0" }}>{d.getDate()}</p>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Hour rows */}
-            {HOURS.map(hour=>(
-              <div key={hour} style={{ display:"grid", gridTemplateColumns:`64px repeat(7,1fr)`, gap:0, borderTop:`1px solid ${C.border}22` }}>
-                {/* Hour label */}
-                <div style={{ padding:"8px 8px 8px 0", textAlign:"right" }}>
-                  <span style={{ color:C.dim, fontSize:11, fontWeight:500 }}>{hour}</span>
-                </div>
-                {/* Day cells */}
-                {weekDays.map((day,di)=>{
-                  const dateStr = localDateStr(day);
-                  const appts   = getAppts(day,hour);
-                  const canAdd  = appts.length < MAX_PER_SLOT;
-                  return (
-                    <div key={di}
-                      onClick={()=>canAdd&&setShowForm({date:dateStr,time:hour})}
-                      style={{ minHeight:52, padding:3, borderLeft:`1px solid ${C.border}22`, cursor:canAdd?"pointer":"default", transition:"background 0.15s" }}
-                      onMouseEnter={e=>{ if(canAdd) e.currentTarget.style.background="rgba(38,166,154,0.05)"; }}
-                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      {appts.map(a=>(
-                        <div key={a.id}
-                          style={{ background:typeColor[a.type]||"rgba(38,166,154,0.6)", borderRadius:8, padding:"3px 7px", marginBottom:3, display:"flex", alignItems:"center", justifyContent:"space-between", gap:4 }}>
-                          <span style={{ color:"#fff", fontSize:11, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1 }}>{a.patient_name}</span>
-                          <button onClick={e=>deleteAppt(a.id,e)} style={{ background:"rgba(0,0,0,0.2)", border:"none", borderRadius:4, color:"rgba(255,255,255,0.7)", cursor:"pointer", padding:"0 4px", fontSize:12, flexShrink:0 }}>×</button>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <p style={{ color:C.dim, fontSize:12, marginTop:12 }}>Haz clic en cualquier celda para agregar una cita · Máx. {MAX_PER_SLOT} por hora</p>
-    </div>
-  );
-}
-
-// ─── MESSAGES ─────────────────────────────────────────────────────────────────
-function MessagesView({ user }) {
-  const [messages,setMessages] = useState([]);
-  const [active,setActive]     = useState(null);
-  const [reply,setReply]       = useState("");
-  const [loading,setLoading]   = useState(true);
-
-  useEffect(()=>{ fetchMessages(); },[]);
-
-  const fetchMessages = async () => {
-    const {data} = await supabase.from("messages").select("*").order("created_at",{ascending:false});
-    setMessages(data||[]);
-    if(data?.length>0) setActive(data[0]);
-    setLoading(false);
-  };
-
-  const sendReply = async () => {
-    if(!reply.trim()||!active) return;
-    await supabase.from("messages").insert({therapist_id:user.id,patient_name:active.patient_name,content:reply,sender:"therapist",unread:false});
-    setReply(""); fetchMessages();
-  };
-
-  return (
-    <div>
-      <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:26, margin:"0 0 20px" }}>Mensajes</h2>
-      {loading ? <Spinner/> : messages.length===0 ? (
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, padding:48, textAlign:"center" }}>
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.3" style={{marginBottom:12}}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-          <p style={{ color:C.muted }}>Sin mensajes aún</p>
-        </div>
-      ) : (
-        <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:12, height:520 }}>
-          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, overflowY:"auto" }}>
-            {messages.map(msg=>(
-              <button key={msg.id} onClick={()=>setActive(msg)}
-                style={{ width:"100%", padding:14, display:"flex", gap:10, alignItems:"flex-start", background:active?.id===msg.id?"rgba(38,166,154,0.1)":"transparent", border:"none", borderLeft:active?.id===msg.id?`3px solid ${C.accent}`:"3px solid transparent", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
-                <Avatar name={msg.patient_name||"?"} size={34}/>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <p style={{ color:C.text, fontWeight:600, fontSize:13, margin:0 }}>{msg.patient_name}</p>
-                  <p style={{ color:C.muted, fontSize:12, margin:"3px 0 0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{msg.content}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-          <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:20, display:"flex", flexDirection:"column" }}>
-            {active && (
-              <>
-                <div style={{ padding:16, borderBottom:`1px solid ${C.border}`, display:"flex", gap:10, alignItems:"center" }}>
-                  <Avatar name={active.patient_name||"?"} size={36}/>
-                  <p style={{ color:C.text, fontWeight:600, margin:0 }}>{active.patient_name}</p>
-                </div>
-                <div style={{ flex:1, padding:16 }}>
-                  <div style={{ background:active.sender==="therapist"?`linear-gradient(135deg,${C.accent},#1a7a75)`:C.surface, border:active.sender==="therapist"?"none":`1px solid ${C.border}`, borderRadius:16, borderTopRightRadius:active.sender==="therapist"?4:16, borderTopLeftRadius:active.sender==="therapist"?16:4, padding:"10px 14px", maxWidth:"75%", marginLeft:active.sender==="therapist"?"auto":"0", fontSize:14, color:C.text }}>
-                    {active.content}
-                  </div>
-                </div>
-                <div style={{ padding:14, borderTop:`1px solid ${C.border}`, display:"flex", gap:10 }}>
-                  <input value={reply} onChange={e=>setReply(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendReply()} placeholder="Escribe tu respuesta..."
-                    style={{...inp,flex:1}}/>
-                  <button onClick={sendReply} style={{ width:44, height:44, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:12, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="white" style={{transform:"rotate(90deg)"}}><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-// ─── PENDING APPROVAL SCREEN ──────────────────────────────────────────────────
-function PendingApproval({ user }) {
-  return (
-    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:24, padding:36, textAlign:"center", maxWidth:360, width:"100%" }}>
-        <div style={{ width:64, height:64, background:"rgba(255,167,38,0.12)", border:"1px solid rgba(255,167,38,0.3)", borderRadius:20, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px" }}>
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ffa726" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        </div>
-        <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:22, margin:"0 0 10px" }}>Acceso pendiente</h2>
-        <p style={{ color:C.muted, fontSize:14, lineHeight:1.6, margin:"0 0 8px" }}>
-          Tu cuenta está registrada correctamente.
-        </p>
-        <p style={{ color:C.muted, fontSize:14, lineHeight:1.6, margin:"0 0 24px" }}>
-          Tu fisioterapeuta debe habilitarte el acceso. Una vez aprobado, podrás ver tu plan de ejercicios.
-        </p>
-        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 14px", marginBottom:20 }}>
-          <p style={{ color:C.dim, fontSize:11, margin:0 }}>Cuenta registrada con</p>
-          <p style={{ color:C.text, fontWeight:600, fontSize:14, margin:"3px 0 0" }}>{user.email}</p>
-        </div>
-        <button onClick={()=>supabase.auth.signOut()} style={{ background:"transparent", border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 20px", color:C.muted, cursor:"pointer", fontSize:14 }}>
-          Cerrar sesión
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── INVITE HANDLER ────────────────────────────────────────────────────────────
-function InviteHandler({ token, user }) {
-  const [status,setStatus] = useState("linking");
-  useEffect(()=>{
-    supabase.from("patients")
-      .update({user_id:user.id, invite_status:"pendiente"})
-      .eq("invite_token",token)
-      .then(({error})=>{
-        window.history.replaceState({},"",window.location.pathname);
-        setStatus(error?"error":"success");
-      });
-  },[]);
-  return (
-    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:24, padding:32, textAlign:"center", maxWidth:320, width:"100%" }}>
-        {status==="linking" && <><div style={{ width:44, height:44, border:`4px solid ${C.accent}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 1s linear infinite", margin:"0 auto 16px" }}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style><p style={{ color:C.muted }}>Vinculando tu cuenta...</p></>}
-        {status==="success" && <><div style={{ fontSize:48, marginBottom:12 }}><div style={{width:40,height:40,border:"4px solid #ffa726",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite",margin:"0 auto 16px"}}/></div><p style={{ color:"#fbbf24", fontWeight:600, fontSize:18 }}>¡Solicitud enviada!</p><p style={{ color:C.muted, fontSize:13, marginTop:6 }}>Tu fisioterapeuta debe aprobar tu acceso. Te avisará cuando esté listo.</p></>}
-        {status==="error" && <><div style={{ fontSize:48, marginBottom:12 }}>⚠️</div><p style={{ color:C.danger, fontWeight:600 }}>Error al vincular</p><p style={{ color:C.muted, fontSize:13 }}>Contacta a tu fisioterapeuta</p></>}
-      </div>
-    </div>
-  );
-}
-
-
-// BIBLIOTECA VIEW
-function BibliotecaView({ user }) {
-  const [exercises, setExercises] = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [showForm, setShowForm]   = useState(false);
-  const [editEx, setEditEx]       = useState(null);
-  const [search, setSearch]       = useState("");
-  const [form, setForm]           = useState({ name:"", description:"", category:"Rehabilitacion", default_block:"Trabajo central", default_sets:3, default_reps:"10", video_url:"" });
-  const [saving, setSaving]       = useState(false);
-
-  const ALL_CATS = ["Rehabilitacion","Core / Abdomen","Gluteos / Cadera","Pierna / Rodilla","Hombro / Escapular","Pecho / Empuje","Espalda / Traccion","Biceps / Triceps","Tobillo / Pie","Cervical / Cuello","Muneca / Mano","Calentamiento","Full Body / Funcional","Otro"];
-
-  useEffect(()=>{ fetchExercises(); },[]);
-
-  const fetchExercises = async () => {
-    const {data} = await supabase.from("custom_exercises").select("*").eq("therapist_id",user.id).order("created_at",{ascending:false});
-    setExercises(data||[]); setLoading(false);
-  };
-
-  const openCreate = () => {
-    setEditEx(null);
-    setForm({ name:"", description:"", category:"Rehabilitacion", default_block:"Trabajo central", default_sets:3, default_reps:"10", video_url:"" });
-    setShowForm(true);
-  };
-
-  const openEdit = (ex) => {
-    setEditEx(ex);
-    setForm({ name:ex.name, description:ex.description||"", category:ex.category||"Rehabilitacion", default_block:ex.default_block||"Trabajo central", default_sets:ex.default_sets||3, default_reps:ex.default_reps||"10", video_url:ex.video_url||"" });
-    setShowForm(true);
-  };
-
-  const saveExercise = async () => {
-    if(!form.name.trim()) return;
-    setSaving(true);
-    const data = { therapist_id:user.id, name:form.name.trim(), description:form.description, category:form.category, default_block:form.default_block, default_sets:parseInt(form.default_sets)||3, default_reps:form.default_reps, video_url:form.video_url||null };
-    if(editEx) await supabase.from("custom_exercises").update(data).eq("id",editEx.id);
-    else await supabase.from("custom_exercises").insert(data);
-    setSaving(false); setShowForm(false); fetchExercises();
-  };
-
-  const deleteExercise = async (id) => {
-    if(!window.confirm("Eliminar este ejercicio?")) return;
-    await supabase.from("custom_exercises").delete().eq("id",id);
-    fetchExercises();
-  };
-
-  const filtered = exercises.filter(e=>e.name.toLowerCase().includes(search.toLowerCase())||(e.description||"").toLowerCase().includes(search.toLowerCase()));
-
-  const BLOCK_META = {
-    "Terapia":                { color:"#f87171", icon:"T" },
-    "Calentamiento / Activacion": { color:"#fbbf24", icon:"C" },
-    "Trabajo central":        { color:"#34d399", icon:"W" },
-  };
-
-  return (
-    <div>
-      {showForm && (
-        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:50, display:"flex", alignItems:"center", justifyContent:"center", padding:16, overflowY:"auto" }}>
-          <div style={{ background:C.surface, border:"1px solid "+C.border, borderRadius:24, padding:24, width:"100%", maxWidth:520 }}>
-            <h3 style={{ fontFamily:"Fraunces,serif", color:C.text, fontSize:20, margin:"0 0 20px" }}>{editEx?"Editar ejercicio":"Nuevo ejercicio"}</h3>
-            <div style={{ display:"grid", gap:12 }}>
-              <div>
-                <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>Nombre *</label>
-                <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ej: Sentadilla isometrica" style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/>
-              </div>
-              <div>
-                <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>Descripcion / Instrucciones</label>
-                <textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Como se realiza el ejercicio..." rows={3}
-                  style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%",resize:"none",lineHeight:1.5}}/>
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                <div>
-                  <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>Categoria</label>
-                  <select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}
-                    style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%"}}>
-                    {ALL_CATS.map(c=><option key={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>Bloque por defecto</label>
-                  <select value={form.default_block} onChange={e=>setForm({...form,default_block:e.target.value})}
-                    style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%"}}>
-                    <option>Trabajo central</option>
-                    <option>Terapia</option>
-                    <option>Calentamiento / Activacion</option>
-                  </select>
-                </div>
-              </div>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-                <div>
-                  <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>Series por defecto</label>
-                  <input type="number" value={form.default_sets} onChange={e=>setForm({...form,default_sets:e.target.value})} min="1"
-                    style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%",textAlign:"center",fontWeight:700}}/>
-                </div>
-                <div>
-                  <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>Reps / Tiempo por defecto</label>
-                  <input type="text" value={form.default_reps} onChange={e=>setForm({...form,default_reps:e.target.value})} placeholder="10 / 30seg"
-                    style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%",textAlign:"center",fontWeight:700}}/>
-                </div>
-              </div>
-              <div>
-                <label style={{ fontSize:12, color:C.muted, display:"block", marginBottom:6 }}>
-                  Link de video (YouTube, Drive, etc.) <span style={{color:C.dim}}>- opcional</span>
-                </label>
-                <input value={form.video_url} onChange={e=>setForm({...form,video_url:e.target.value})} placeholder="https://youtube.com/watch?v=..."
-                  style={{background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"10px 14px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/>
-                {form.video_url && (
-                  <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}>
-                    <a href={form.video_url} target="_blank" rel="noreferrer"
-                      style={{ fontSize:12, color:C.accent, display:"flex", alignItems:"center", gap:4, textDecoration:"none" }}>
-                      🎬 Ver video de referencia
-                    </a>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div style={{ display:"flex", gap:10, marginTop:20 }}>
-              <button onClick={saveExercise} disabled={!form.name.trim()||saving}
-                style={{ flex:1, background:"linear-gradient(135deg,"+C.accent+",#1a7a75)", border:"none", borderRadius:14, padding:13, color:"#fff", fontWeight:700, cursor:"pointer", opacity:saving?0.7:1, fontSize:15 }}>
-                {saving?"Guardando...":(editEx?"Guardar cambios":"Crear ejercicio")}
-              </button>
-              <button onClick={()=>setShowForm(false)}
-                style={{ background:C.card, border:"1px solid "+C.border, borderRadius:14, padding:"13px 18px", color:C.muted, cursor:"pointer", fontSize:14 }}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
-        <div>
-          <h2 style={{ fontFamily:"Fraunces,serif", color:C.text, fontSize:26, margin:0 }}>Mi Biblioteca</h2>
-          <p style={{ color:C.muted, fontSize:13, marginTop:4 }}>{exercises.length} ejercicios personalizados</p>
-        </div>
-        <button onClick={()=>setShowNewEx(true)}
-              style={{ display:"flex", alignItems:"center", gap:5, background:"rgba(38,166,154,0.12)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:10, padding:"5px 10px", color:C.accent, fontSize:12, fontWeight:600, cursor:"pointer" }}>
-              {Icon.plus} Crear ejercicio
+          <div style={{padding:"10px 14px",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,flexShrink:0}}>
+            <input value={reply} onChange={e=>setReply(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="Mensaje..." style={{...inp,flex:1}}/>
+            <button onClick={send} disabled={!reply.trim()} style={{width:38,height:38,background:reply.trim()?C.accentG:"rgba(255,255,255,.04)",border:"none",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",cursor:reply.trim()?"pointer":"default",flexShrink:0,color:"#fff"}}>
+              {I.send}
             </button>
-      </div>
-
-      <div style={{ position:"relative", marginBottom:16 }}>
-        <svg style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar en mis ejercicios..."
-          style={{background:C.card,border:"1px solid "+C.border,borderRadius:14,padding:"10px 14px 10px 38px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/>
-      </div>
-
-      {loading ? <Spinner/> : filtered.length===0 ? (
-        <div style={{ background:C.card, border:"1px solid "+C.border, borderRadius:20, padding:60, textAlign:"center" }}>
-          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#3d4f7c" strokeWidth="1.3" style={{marginBottom:12}}><path d="M6.5 6.5h11M6.5 17.5h11M2 12h20M4 9.5v5M20 9.5v5"/></svg>
-          <p style={{ color:C.text, fontWeight:600, fontSize:18, margin:"0 0 8px" }}>{exercises.length===0?"Crea tu primer ejercicio":"Sin resultados"}</p>
-          <p style={{ color:C.muted, fontSize:14 }}>{exercises.length===0?"Haz clic en Crear ejercicio para empezar":"Intenta con otro nombre"}</p>
-          {exercises.length===0 && (
-            <button onClick={openCreate} style={{ marginTop:20, background:"linear-gradient(135deg,"+C.accent+",#1a7a75)", border:"none", borderRadius:14, padding:"12px 24px", color:"#fff", fontWeight:700, cursor:"pointer", fontSize:15 }}>
-              Crear primer ejercicio
-            </button>
-          )}
-        </div>
-      ) : (
-        <div style={{ display:"grid", gap:10 }}>
-          {filtered.map(ex=>{
-            const bm = BLOCK_META[ex.default_block]||{color:C.muted,icon:"G"};
-            return (
-              <div key={ex.id} style={{ background:C.card, border:"1px solid "+C.border, borderRadius:20, padding:18, transition:"all 0.2s" }}
-                onMouseEnter={e=>e.currentTarget.style.borderColor=C.accent+"55"}
-                onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
-                <div style={{ display:"flex", gap:14, alignItems:"flex-start" }}>
-                  <div style={{ width:44, height:44, background:"rgba(38,166,154,0.12)", border:"1px solid rgba(38,166,154,0.2)", borderRadius:14, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>
-                    {bm.icon}
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:4 }}>
-                      <p style={{ color:C.text, fontWeight:700, fontSize:16, margin:0 }}>{ex.name}</p>
-                      {ex.video_url && (
-                        <a href={ex.video_url} target="_blank" rel="noreferrer"
-                          style={{ fontSize:11, background:"rgba(251,191,36,0.15)", color:"#fbbf24", padding:"2px 8px", borderRadius:8, fontWeight:600, textDecoration:"none", display:"flex", alignItems:"center", gap:3 }}>
-                          🎬 Video
-                        </a>
-                      )}
-                    </div>
-                    {ex.description && <p style={{ color:C.muted, fontSize:13, margin:"0 0 8px", lineHeight:1.5 }}>{ex.description}</p>}
-                    <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-                      <span style={{ fontSize:11, background:"rgba(255,255,255,0.07)", color:C.muted, padding:"3px 10px", borderRadius:20 }}>{ex.category}</span>
-                      <span style={{ fontSize:11, color:bm.color, background:"rgba(0,0,0,0.2)", padding:"3px 10px", borderRadius:20 }}>{bm.icon} {ex.default_block}</span>
-                      <span style={{ fontSize:11, color:C.accent, fontWeight:600 }}>{ex.default_sets} series × {ex.default_reps}</span>
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", gap:8, flexShrink:0 }}>
-                    <button onClick={()=>openEdit(ex)}
-                      style={{ background:"rgba(38,166,154,0.12)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:12, padding:"7px 12px", color:C.accent, fontWeight:600, fontSize:13, cursor:"pointer" }}>
-                      Editar
-                    </button>
-                    <button onClick={()=>deleteExercise(ex.id)}
-                      style={{ background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:12, padding:"7px 10px", color:C.danger, fontSize:13, cursor:"pointer" }}>
-                      🗑
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-// ─── DASHBOARD VIEW ───────────────────────────────────────────────────────────
-function DashboardView({ user, onNavigate }) {
-  const [stats,setStats]       = useState({patients:0,active:0,pending:0,appointments:0,messages:0,requests:0});
-  const [recent,setRecent]     = useState([]);
-  const [apts,setApts]         = useState([]);
-  const [requests,setRequests] = useState([]);
-  const [expiring,setExpiring] = useState([]);
-  const [loading,setLoading]   = useState(true);
+// ─── CUSTOM EXERCISES VIEW ────────────────────────────────────────────────────
+function CustomExercisesView({user}){
+  const [exs,setExs]=useState([]);
+  const [loading,setLoad]=useState(true);
+  const [showForm,setForm]=useState(false);
+  const [editEx,setEdit]=useState(null);
+  const [form,setF]=useState({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10",video_url:""});
+  const [saving,setSave]=useState(false);
 
-  useEffect(()=>{ load(); },[]);
-
-  const load = async () => {
-    const in7days = new Date(Date.now()+7*24*60*60*1000).toISOString().split("T")[0];
-    const [
-      {data:patients},
-      {data:appointments},
-      {data:messages},
-      {data:reqs},
-      {data:expiringPlans},
-    ] = await Promise.all([
-      supabase.from("patients").select("*"),
-      supabase.from("appointments").select("*").gte("date",localDateStr(new Date())).order("date").limit(4),
-      supabase.from("messages").select("*").eq("unread",true),
-      supabase.from("access_requests").select("*").order("created_at",{ascending:false}).then(r=>r.error?{data:[]}:r),
-      supabase.from("prescriptions").select("*,patients(name)").lte("end_date",in7days).gte("end_date",localDateStr(new Date())).then(r=>r.error?{data:[]}:r),
-    ]);
-    const p = patients||[];
-    setStats({
-      patients:p.length, active:p.filter(x=>x.invite_status==="aprobado").length,
-      pending:p.filter(x=>x.invite_status==="pendiente").length,
-      appointments:(appointments||[]).length,
-      messages:(messages||[]).length,
-      requests:(reqs||[]).length,
-    });
-    setRecent(p.slice(0,4));
-    setApts(appointments||[]);
-    setRequests(reqs||[]);
-    setExpiring(expiringPlans||[]);
-    setLoading(false);
+  useEffect(()=>{load();},[]);
+  const load=async()=>{const{data}=await supabase.from("custom_exercises").select("*").eq("therapist_id",user.id).order("created_at",{ascending:false});setExs(data||[]);setLoad(false);};
+  const save=async()=>{
+    if(!form.name.trim())return;setSave(true);
+    const payload={therapist_id:user.id,name:form.name.trim(),description:form.description,category:form.category,default_sets:parseInt(form.default_sets)||3,default_reps:form.default_reps,video_url:form.video_url||null};
+    if(editEx)await supabase.from("custom_exercises").update(payload).eq("id",editEx.id);
+    else await supabase.from("custom_exercises").insert(payload);
+    setF({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10",video_url:""});setForm(false);setEdit(null);setSave(false);load();
   };
-
-  const approveRequest = async (req) => {
-    // Create patient record linked to this user
-    const {data:pat} = await supabase.from("patients").insert({
-      name: req.display_name || req.email.split("@")[0],
-      email: req.email,
-      therapist_id: user.id,
-      user_id: req.user_id,
-      invite_status: "aprobado",
-      invite_token: crypto.randomUUID(),
-    }).select().single();
-    await supabase.from("access_requests").delete().eq("id",req.id);
-    load();
-  };
-
-  const rejectRequest = async (id) => {
-    await supabase.from("access_requests").delete().eq("id",id);
-    load();
-  };
-
-  const today = new Date().toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long"});
-
-  const statCards=[
-    {label:"Pacientes",   value:stats.patients,     sub:`${stats.active} activos`,  color:C.accent,  tab:"patients"},
-    {label:"Pendientes",  value:stats.pending,       sub:"por aprobar",              color:C.warn,    tab:"patients", filter:"pendiente"},
-    {label:"Citas",       value:stats.appointments,  sub:"próximas",                 color:"#7e57c2", tab:"agenda"},
-    {label:"Mensajes",    value:stats.messages,      sub:"sin leer",                 color:"#42a5f5", tab:"messages"},
-  ];
-
-  if(loading) return(
-    <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:60}}>
-      <div style={{width:28,height:28,border:`3px solid ${C.accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
-      <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
-    </div>
-  );
+  const del=async(id)=>{if(!window.confirm("¿Eliminar este ejercicio?"))return;await supabase.from("custom_exercises").delete().eq("id",id);load();};
+  const openEdit=(ex)=>{setEdit(ex);setF({name:ex.name,description:ex.description||"",category:ex.category||"Rehabilitacion",default_sets:ex.default_sets||3,default_reps:ex.default_reps||"10",video_url:ex.video_url||""});setForm(true);};
 
   return(
-    <div style={{maxWidth:1000}}>
-      {/* Header */}
-      <div style={{marginBottom:20}}>
-        <p style={{color:C.muted,fontSize:12,marginBottom:3,textTransform:"capitalize"}}>{today}</p>
-        <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:22,margin:0}}>Panel de control</h2>
-      </div>
-
-      {/* Access requests alert */}
-      {requests.length>0 && (
-        <div style={{background:"rgba(255,167,38,0.08)",border:"1px solid rgba(255,167,38,0.3)",borderRadius:16,padding:"14px 16px",marginBottom:16}}>
-          <p style={{color:C.warn,fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,margin:"0 0 10px"}}>
-            Solicitudes de acceso ({requests.length})
-          </p>
-          <div style={{display:"grid",gap:8}}>
-            {requests.map(req=>(
-              <div key={req.id} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(0,0,0,0.2)",borderRadius:10,padding:"8px 12px"}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <p style={{color:C.text,fontSize:13,fontWeight:600,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{req.display_name||req.email.split("@")[0]}</p>
-                  <p style={{color:C.dim,fontSize:11,margin:"1px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{req.email}</p>
-                  <p style={{color:C.dim,fontSize:11,margin:"2px 0 0"}}>{new Date(req.created_at).toLocaleDateString("es-CO")}</p>
-                </div>
-                <button onClick={()=>approveRequest(req)}
-                  style={{background:"rgba(102,187,106,0.15)",border:"1px solid rgba(102,187,106,0.3)",borderRadius:8,padding:"5px 12px",color:C.success,fontWeight:700,fontSize:12,cursor:"pointer",flexShrink:0}}>
-                  Aprobar
-                </button>
-                <button onClick={()=>rejectRequest(req.id)}
-                  style={{background:"rgba(239,83,80,0.1)",border:"1px solid rgba(239,83,80,0.2)",borderRadius:8,padding:"5px 10px",color:C.danger,fontSize:12,cursor:"pointer",flexShrink:0}}>
-                  ✕
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Expiring plans alert */}
-      {expiring.length>0 && (
-        <div style={{background:"rgba(239,83,80,0.07)",border:"1px solid rgba(239,83,80,0.25)",borderRadius:16,padding:"12px 16px",marginBottom:14}}>
-          <p style={{color:C.danger,fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,margin:"0 0 8px"}}>
-            Planes por vencer ({expiring.length})
-          </p>
-          <div style={{display:"grid",gap:6}}>
-            {expiring.map(p=>{
-              const daysLeft=Math.ceil((new Date(p.end_date)-new Date())/(1000*60*60*24));
-              return(
-                <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"rgba(0,0,0,0.2)",borderRadius:8,padding:"6px 12px"}}>
-                  <p style={{color:C.text,fontSize:13,fontWeight:600,margin:0}}>{p.patients?.name||"Paciente"}</p>
-                  <span style={{fontSize:11,fontWeight:700,color:daysLeft===0?C.danger:C.warn}}>{daysLeft===0?"Vence hoy":`${daysLeft}d`}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Stat cards — compact 2x2 grid */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
-        {statCards.map((s,i)=>(
-          <div key={i} onClick={()=>s.tab&&onNavigate(s.tab,null,s.filter)}
-            style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",position:"relative",overflow:"hidden",cursor:s.tab?"pointer":"default",transition:"border-color 0.15s"}}
-            onMouseEnter={e=>{ if(s.tab) e.currentTarget.style.borderColor=s.color+"55"; }}
-            onMouseLeave={e=>{ e.currentTarget.style.borderColor=C.border; }}>
-            <div style={{position:"absolute",top:-10,right:-10,width:52,height:52,borderRadius:"50%",background:`${s.color}14`}}/>
-            <p style={{color:s.color,fontSize:28,fontWeight:700,margin:0,lineHeight:1}}>{s.value}</p>
-            <p style={{color:C.text,fontSize:13,fontWeight:600,margin:"5px 0 1px"}}>{s.label}</p>
-            <p style={{color:C.muted,fontSize:11,margin:0}}>{s.sub}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Two columns */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
-        {/* Upcoming */}
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 16px",minWidth:0,overflow:"hidden"}}>
-          <h3 style={{color:C.text,fontSize:13,fontWeight:600,margin:"0 0 12px",display:"flex",alignItems:"center",gap:7}}>
-            {Icon.agenda} Próximas citas
-          </h3>
-          {apts.length===0 ? (
-            <p style={{color:C.muted,fontSize:12,textAlign:"center",padding:"10px 0"}}>Sin citas</p>
-          ) : apts.map(a=>(
-            <div key={a.id} style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
-              <div style={{background:"rgba(38,166,154,0.1)",border:"1px solid rgba(38,166,154,0.2)",borderRadius:8,padding:"4px 8px",textAlign:"center",minWidth:44,flexShrink:0}}>
-                <p style={{color:C.accent,fontWeight:700,fontSize:13,margin:0}}>{a.time||"--"}</p>
-                <p style={{color:C.muted,fontSize:10,margin:0}}>{a.date?.slice(5)}</p>
-              </div>
-              <div style={{minWidth:0}}>
-                <p style={{color:C.text,fontWeight:600,fontSize:12,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.patient_name}</p>
-                <p style={{color:C.muted,fontSize:11,margin:"1px 0 0"}}>{a.type}</p>
-              </div>
+    <div>
+      {showForm&&(
+        <Modal title={editEx?"Editar ejercicio":"Nuevo ejercicio"} onClose={()=>{setForm(false);setEdit(null);setF({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10",video_url:""});}}>
+          <div style={{display:"grid",gap:10}}>
+            <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Nombre *</label><input value={form.name} onChange={e=>setF({...form,name:e.target.value})} style={inp}/></div>
+            <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Descripción</label><textarea value={form.description} onChange={e=>setF({...form,description:e.target.value})} rows={3} style={{...inp,resize:"none",lineHeight:1.5}}/></div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+              <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Categoría</label><select value={form.category} onChange={e=>setF({...form,category:e.target.value})} style={{...inp,padding:"8px 10px"}}>{["Rehabilitacion","Core / Abdomen","Gluteos / Cadera","Pierna / Rodilla","Hombro / Escapular","Pecho / Empuje","Espalda / Traccion","Tobillo / Pie","Cervical / Cuello","Calentamiento","Full Body","Otro"].map(c=><option key={c}>{c}</option>)}</select></div>
+              <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Series</label><input type="number" value={form.default_sets} min="1" onChange={e=>setF({...form,default_sets:e.target.value})} style={{...inp,textAlign:"center"}}/></div>
+              <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Reps</label><input value={form.default_reps} onChange={e=>setF({...form,default_reps:e.target.value})} style={{...inp,textAlign:"center"}}/></div>
             </div>
-          ))}
-        </div>
+            <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>URL de video (YouTube, etc.)</label><input value={form.video_url} onChange={e=>setF({...form,video_url:e.target.value})} placeholder="https://youtube.com/watch?v=..." style={inp}/></div>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:18}}>
+            <Btn onClick={save} disabled={!form.name.trim()||saving} variant="primary" style={{flex:1}}>{saving?"Guardando...":editEx?"Actualizar":"Crear ejercicio"}</Btn>
+            <Btn onClick={()=>{setForm(false);setEdit(null);}} variant="ghost">Cancelar</Btn>
+          </div>
+        </Modal>
+      )}
 
-        {/* Recent patients */}
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 16px",minWidth:0,overflow:"hidden"}}>
-          <h3 style={{color:C.text,fontSize:13,fontWeight:600,margin:"0 0 12px",display:"flex",alignItems:"center",gap:7}}>
-            {Icon.patients} Pacientes recientes
-          </h3>
-          {recent.map(p=>(
-            <div key={p.id} onClick={()=>onNavigate("patients",p)}
-              style={{display:"flex",gap:8,alignItems:"center",marginBottom:10,cursor:"pointer",borderRadius:8,padding:"2px 0",transition:"opacity 0.15s"}}
-              onMouseEnter={e=>e.currentTarget.style.opacity="0.7"}
-              onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
-              <div style={{width:30,height:30,borderRadius:9,background:C.accentG,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:11,flexShrink:0}}>
-                {(p.name||"?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}
-              </div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <div>
+          <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:20,margin:0}}>Mis ejercicios</h2>
+          <p style={{color:C.muted,fontSize:12,margin:"2px 0 0"}}>{exs.length} ejercicios personalizados</p>
+        </div>
+        <Btn onClick={()=>{setEdit(null);setF({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10",video_url:""});setForm(true);}} variant="primary">{I.plus} Nuevo</Btn>
+      </div>
+
+      {loading?<Spinner/>:exs.length===0?(
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:40,textAlign:"center"}}>
+          <p style={{color:C.muted,fontSize:13}}>Crea ejercicios personalizados para usar en tus planes</p>
+          <Btn onClick={()=>setForm(true)} variant="primary" style={{marginTop:12}}>Crear primer ejercicio</Btn>
+        </div>
+      ):(
+        <div style={{display:"grid",gap:6}}>
+          {exs.map(ex=>(
+            <div key={ex.id} style={{display:"flex",alignItems:"center",gap:12,background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 14px"}}>
               <div style={{flex:1,minWidth:0}}>
-                <p style={{color:C.text,fontWeight:600,fontSize:12,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</p>
-                <p style={{color:C.muted,fontSize:11,margin:"1px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.condition||"Sin diagnóstico"}</p>
+                <p style={{color:C.text,fontWeight:600,fontSize:13,margin:0}}>{ex.name}</p>
+                <p style={{color:C.muted,fontSize:11,margin:"2px 0 0"}}>{ex.category} · {ex.default_sets}×{ex.default_reps}</p>
+                {ex.description&&<p style={{color:C.dim,fontSize:11,margin:"3px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ex.description}</p>}
               </div>
-              {p.invite_status==="pendiente"&&<span style={{fontSize:9,background:"rgba(255,167,38,.15)",color:C.warn,padding:"2px 6px",borderRadius:6,fontWeight:600,flexShrink:0}}>Pendiente</span>}
-              {p.invite_status==="aprobado"&&<span style={{fontSize:9,background:"rgba(102,187,106,.15)",color:C.success,padding:"2px 6px",borderRadius:6,fontWeight:600,flexShrink:0}}>Activo</span>}
+              {ex.video_url&&<a href={ex.video_url} target="_blank" rel="noreferrer" style={{color:C.accent,fontSize:11,textDecoration:"none",flexShrink:0}} onClick={e=>e.stopPropagation()}>Video</a>}
+              <Menu items={[
+                {label:"Editar",   icon:I.edit,  action:()=>openEdit(ex)},
+                "---",
+                {label:"Eliminar", icon:I.trash, danger:true, action:()=>del(ex.id)},
+              ]}/>
             </div>
           ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
+// ─── THERAPIST APP ────────────────────────────────────────────────────────────
+function TherapistApp({user}){
+  const [tab,setTab]=useState("dashboard");
+  const [prescribePt,setPrescribePt]=useState(null);
+  const [profilePt,setProfilePt]=useState(null);
+  const [pendingFilter,setPF]=useState(null);
 
-function TherapistApp({ user }) {
-  const [tab,setTab]                           = useState("dashboard");
-  const [prescribePatient,setPrescribePatient] = useState(null);
-  const [profilePatient,setProfilePatient]     = useState(null);
-  const [collapsed,setCollapsed]               = useState(true); // start collapsed
-  const [pendingFilter,setPendingFilter]       = useState(null);
+  const goBack=()=>{setPrescribePt(null);setProfilePt(null);};
+  const prescribe=p=>{setPrescribePt(p);setProfilePt(null);setTab("patients");};
+  const viewProfile=p=>{setProfilePt(p);setPrescribePt(null);};
 
-  const handleViewProfile = p=>{ setProfilePatient(p); setPrescribePatient(null); };
-  const handlePrescribe   = p=>{ setPrescribePatient(p); setProfilePatient(null); setTab("patients"); };
-  const handleBack        = ()=>{ setPrescribePatient(null); setProfilePatient(null); };
-
-  const navItems=[
-    {id:"dashboard", label:"Dashboard",  icon:Icon.dashboard},
-    {id:"patients",  label:"Pacientes",  icon:Icon.patients},
-    {id:"agenda",    label:"Agenda",     icon:Icon.agenda},
-    {id:"messages",  label:"Mensajes",   icon:Icon.messages},
+  const NAV=[
+    {id:"dashboard",icon:I.dash,  label:"Dashboard"},
+    {id:"patients", icon:I.pts,   label:"Pacientes"},
+    {id:"agenda",   icon:I.cal,   label:"Agenda"},
+    {id:"messages", icon:I.msg,   label:"Mensajes"},
   ];
 
-  const sideW = collapsed ? 56 : 200;
-
-  return (
+  return(
     <div style={{minHeight:"100vh",background:C.bg,display:"flex"}}>
-      {/* Sidebar */}
-      <aside style={{width:sideW,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:20,transition:"width 0.2s cubic-bezier(.16,1,.3,1)",overflow:"hidden",flexShrink:0}}>
-        {/* Logo + collapse button */}
-        <div style={{padding:"12px 10px",paddingTop:"calc(12px + env(safe-area-inset-top,0px))",display:"flex",alignItems:"center",justifyContent:collapsed?"center":"space-between",borderBottom:`1px solid ${C.border}`,flexShrink:0,gap:8}}>
-          {!collapsed && (
-            <div style={{display:"flex",alignItems:"center",gap:9,minWidth:0}}>
-              <div style={{width:30,height:30,background:C.accentG,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-              </div>
-              <span style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:14,fontWeight:700,whiteSpace:"nowrap"}}>FisioApp</span>
-            </div>
-          )}
-          {/* Small collapse toggle */}
-          <button onClick={()=>setCollapsed(!collapsed)} title={collapsed?"Expandir":"Contraer"}
-            style={{width:28,height:28,borderRadius:8,border:`1px solid ${C.border}`,background:C.card,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:C.dim,flexShrink:0,transition:"all 0.15s"}}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-              style={{transform:collapsed?"rotate(180deg)":"none",transition:"transform 0.2s"}}>
-              <path d="M11 19l-7-7 7-7M19 19l-7-7 7-7"/>
-            </svg>
-          </button>
+      {/* Sidebar — icons only */}
+      <aside style={{width:52,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:20,paddingTop:"env(safe-area-inset-top,0px)"}}>
+        <div style={{padding:"14px 0 12px",display:"flex",justifyContent:"center",borderBottom:`1px solid ${C.border}`}}>
+          <div style={{width:30,height:30,background:C.accentG,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </div>
         </div>
-
-        <nav style={{flex:1,padding:"8px 6px",display:"flex",flexDirection:"column",gap:2,overflowY:"auto"}}>
-          {navItems.map(item=>{
-            const active=tab===item.id&&!prescribePatient&&!profilePatient;
-            return (
-              <button key={item.id} onClick={()=>{setTab(item.id);handleBack();}} title={item.label}
-                style={{display:"flex",alignItems:"center",gap:10,padding:collapsed?"10px":"9px 11px",borderRadius:10,border:"none",cursor:"pointer",width:"100%",textAlign:"left",transition:"all 0.15s",justifyContent:collapsed?"center":"flex-start",
-                  background:active?"rgba(38,166,154,0.14)":"transparent",
-                  color:active?C.accent:C.muted,
-                  borderLeft:(!collapsed&&active)?`2px solid ${C.accent}`:"2px solid transparent",
-                }}>
-                <span style={{flexShrink:0}}>{item.icon}</span>
-                {!collapsed&&<span style={{fontSize:13,fontWeight:active?600:400,whiteSpace:"nowrap"}}>{item.label}</span>}
-              </button>
-            );
-          })}
+        <nav style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"8px 0",gap:2}}>
+          {NAV.map(item=>{const a=tab===item.id&&!prescribePt&&!profilePt;return(
+            <button key={item.id} onClick={()=>{setTab(item.id);goBack();}} title={item.label}
+              style={{width:36,height:36,borderRadius:9,border:"none",background:a?"rgba(38,166,154,.15)":"transparent",color:a?C.accent:C.muted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .15s"}}>
+              {item.icon}
+            </button>
+          );})}
         </nav>
-
-        <div style={{padding:"6px",borderTop:`1px solid ${C.border}`}}>
+        <div style={{padding:"8px 0 12px",paddingBottom:"calc(12px + env(safe-area-inset-bottom,0px))",display:"flex",flexDirection:"column",alignItems:"center",gap:2,borderTop:`1px solid ${C.border}`}}>
           <button onClick={()=>supabase.auth.signOut()} title="Cerrar sesión"
-            style={{display:"flex",alignItems:"center",gap:10,padding:collapsed?"10px":"9px 11px",borderRadius:10,border:"none",cursor:"pointer",background:"transparent",color:C.dim,width:"100%",justifyContent:collapsed?"center":"flex-start"}}>
-            {Icon.logout}
-            {!collapsed&&<span style={{fontSize:13,whiteSpace:"nowrap"}}>Cerrar sesión</span>}
+            style={{width:36,height:36,borderRadius:9,border:"none",background:"transparent",color:C.muted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {I.out}
           </button>
         </div>
       </aside>
 
-      <main style={{flex:1,marginLeft:sideW,transition:"margin-left 0.2s cubic-bezier(.16,1,.3,1)",padding:"24px",paddingTop:"calc(24px + env(safe-area-inset-top,0px))",minHeight:"100vh",overflowX:"hidden",overflowY:"auto"}}>
-        {tab==="dashboard"&&<DashboardView user={user} onNavigate={(t,p,filter)=>{setTab(t);if(p)setProfilePatient(p);if(filter)setPendingFilter(filter);}}/>}
-        {tab==="patients"&&!prescribePatient&&!profilePatient&&<PatientsView user={user} onPrescribe={handlePrescribe} onViewProfile={handleViewProfile} initialFilter={pendingFilter} onClearFilter={()=>setPendingFilter(null)}/>}
-        {tab==="patients"&&prescribePatient&&<PrescribeView user={user} patient={prescribePatient} onBack={handleBack}/>}
-        {tab==="patients"&&profilePatient&&<PatientProfile patient={profilePatient} user={user} onBack={handleBack} onPrescribe={handlePrescribe} onApprove={async(id)=>{ await supabase.from("patients").update({invite_status:"aprobado"}).eq("id",id); setProfilePatient(prev=>({...prev,invite_status:"aprobado"})); }}/>}
+      {/* Main */}
+      <main style={{flex:1,marginLeft:52,padding:"28px 28px",minHeight:"100vh",paddingTop:"calc(28px + env(safe-area-inset-top,0px))",overflowX:"hidden",overflowY:"auto"}}>
+        {tab==="dashboard"&&<DashboardView user={user} onNavigate={(t,p,f)=>{setTab(t);if(p)setProfilePt(p);if(f)setPF(f);}}/>}
+        {tab==="patients"&&!prescribePt&&!profilePt&&<PatientsView user={user} onPrescribe={prescribe} onViewProfile={viewProfile} initialFilter={pendingFilter} onClearFilter={()=>setPF(null)}/>}
+        {tab==="patients"&&prescribePt&&<PrescribeView user={user} patient={prescribePt} onBack={goBack}/>}
+        {tab==="patients"&&profilePt&&<PatientProfile patient={profilePt} user={user} onBack={goBack} onPrescribe={prescribe} onApprove={async(id)=>{await supabase.from("patients").update({invite_status:"aprobado"}).eq("id",id);setProfilePt(prev=>({...prev,invite_status:"aprobado"}));}}/>}
         {tab==="agenda"&&<AgendaView user={user}/>}
         {tab==="messages"&&<MessagesView user={user}/>}
       </main>
@@ -1952,71 +1221,71 @@ function TherapistApp({ user }) {
   );
 }
 
-// ─── MAIN ──────────────────────────────────────────────────────────────────────
-export default function App() {
-  const [user,setUser]               = useState(undefined);
-  const [role,setRole]               = useState(null);
-  const [inviteToken,setInviteToken] = useState(null);
+// ─── INVITE HANDLER ───────────────────────────────────────────────────────────
+function InviteHandler({token,user}){
+  const [status,setStatus]=useState("loading");
+  useEffect(()=>{
+    supabase.from("patients").select("id,invite_status").eq("invite_token",token).maybeSingle()
+      .then(async({data})=>{
+        if(!data){setStatus("invalid");return;}
+        if(data.invite_status==="aprobado"){setStatus("already");return;}
+        const{error}=await supabase.from("patients").update({user_id:user.id,invite_status:"pendiente"}).eq("invite_token",token);
+        setStatus(error?"error":"success");
+      });
+  },[token,user.id]);
+
+  const msgs={
+    loading:{title:"Verificando...",sub:""},
+    success:{title:"Solicitud enviada",sub:"Tu fisioterapeuta revisará tu acceso pronto."},
+    already:{title:"Ya tienes acceso",sub:"Entra normalmente a la app."},
+    invalid:{title:"Link inválido",sub:"Este link no existe o ya fue usado."},
+    error:  {title:"Error",sub:"Inténtalo más tarde."},
+  };
+  const m=msgs[status]||msgs.error;
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:"28px 24px",textAlign:"center",maxWidth:320,width:"100%"}}>
+        <div style={{width:44,height:44,background:C.accentG,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <h2 style={{color:C.text,fontSize:17,fontWeight:700,margin:"0 0 8px"}}>{m.title}</h2>
+        {m.sub&&<p style={{color:C.muted,fontSize:13,lineHeight:1.6,margin:"0 0 20px"}}>{m.sub}</p>}
+        {status!=="loading"&&<Btn onClick={()=>window.location.href="/"} variant="ghost" style={{width:"100%"}}>Ir al inicio</Btn>}
+      </div>
+    </div>
+  );
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
+export default function App(){
+  const [user,setUser]=useState(undefined);
+  const [role,setRole]=useState(null);
+  const inviteToken=new URLSearchParams(window.location.search).get("invite");
 
   useEffect(()=>{
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("invite");
-    if(token) setInviteToken(token);
-
-    supabase.auth.getSession().then(({data:{session}})=>{ setUser(session?.user??null); });
-    const {data:{subscription}} = supabase.auth.onAuthStateChange((_e,session)=>{ setUser(session?.user??null); setRole(null); });
-    return ()=>subscription.unsubscribe();
+    supabase.auth.getSession().then(({data:{session}})=>setUser(session?.user||null));
+    const{data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>setUser(session?.user||null));
+    return()=>subscription.unsubscribe();
   },[]);
 
   useEffect(()=>{
-    if(!user){ setRole(null); return; }
+    if(!user){setRole(null);return;}
     (async()=>{
-    const THERAPIST_EMAIL = "celisone1@gmail.com";
-    if(user.email === THERAPIST_EMAIL) {
-      setRole("therapist");
-      return;
-    }
-    // Check if linked to a patient
-    const {data: patData} = await supabase.from("patients")
-      .select("id,invite_status").eq("user_id",user.id).maybeSingle();
-    if(patData && patData.invite_status==="aprobado") {
-      setRole("patient");
-      return;
-    }
-    // Not linked - log access request so therapist can see it
-    const {data: existing} = await supabase.from("access_requests")
-      .select("id").eq("user_id",user.id).maybeSingle();
-    if(!existing) {
-      // Silently fail if table doesn't exist yet
-      try {
-        const meta = user.user_metadata||{};
-        await supabase.from("access_requests").insert({
-          user_id:user.id, email:user.email,
-          display_name: meta.full_name||meta.name||""
-        });
-      } catch(e) {}
-    }
-    setRole("pending");
+      const THERAPIST_EMAIL="celisone1@gmail.com";
+      if(user.email===THERAPIST_EMAIL){setRole("therapist");return;}
+      const{data:patData}=await supabase.from("patients").select("id,invite_status").eq("user_id",user.id).maybeSingle();
+      if(patData&&patData.invite_status==="aprobado"){setRole("patient");return;}
+      try{const meta=user.user_metadata||{};await supabase.from("access_requests").insert({user_id:user.id,email:user.email,display_name:meta.full_name||meta.name||""}).then(r=>{if(r.error&&r.error.code==="23505")return;});}catch(e){}
+      setRole("pending");
     })();
   },[user]);
 
-  if(user===undefined) return (
-    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ width:40, height:40, border:`4px solid ${C.accent}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 1s linear infinite" }}/>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  );
-
-  if(!user) return <LoginView/>;
-  if(user&&role===null) return (
-    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ width:36, height:36, border:`4px solid ${C.accent}`, borderTopColor:"transparent", borderRadius:"50%", animation:"spin 1s linear infinite" }}/>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  );
-
-  if(inviteToken) return <InviteHandler token={inviteToken} user={user}/>;
-  if(role==="patient") return <PatientApp user={user}/>;
-  if(role==="pending") return <PendingApproval user={user}/>;
-  return <TherapistApp user={user}/>;
+  if(user===undefined)return<div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{width:24,height:24,border:`2px solid ${C.accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin .8s linear infinite"}}/><style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div>;
+  if(!user)return<LoginView/>;
+  if(inviteToken)return<InviteHandler token={inviteToken} user={user}/>;
+  if(role==="patient")return<PatientApp user={user}/>;
+  if(role==="pending")return<PendingApproval user={user}/>;
+  if(role==="therapist")return<TherapistApp user={user}/>;
+  return<Spinner/>;
 }
