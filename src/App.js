@@ -91,41 +91,118 @@ function localDateStr(date) {
 function LoginView() {
   const [email,setEmail]       = useState("");
   const [pass,setPass]         = useState("");
+  const [name,setName]         = useState("");
   const [isReg,setIsReg]       = useState(false);
+  const [isForgot,setIsForgot] = useState(false);
   const [loading,setLoading]   = useState(false);
   const [error,setError]       = useState("");
+  const [success,setSuccess]   = useState("");
+
+  const handleForgot = async () => {
+    if(!email.trim()) { setError("Ingresa tu correo electrónico"); return; }
+    setLoading(true); setError(""); setSuccess("");
+    const {error} = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin,
+    });
+    if(error) setError(error.message);
+    else setSuccess("Te enviamos un correo con el link para restablecer tu contraseña.");
+    setLoading(false);
+  };
 
   const handle = async () => {
     setLoading(true); setError("");
-    const {error} = isReg
-      ? await supabase.auth.signUp({email,password:pass})
-      : await supabase.auth.signInWithPassword({email,password:pass});
-    if(error) setError(error.message);
+    if(isReg) {
+      if(!name.trim()) { setError("Ingresa tu nombre completo"); setLoading(false); return; }
+      const {data, error} = await supabase.auth.signUp({
+        email, password:pass,
+        options:{ data:{ full_name: name.trim() } }
+      });
+      if(error) setError(error.message);
+    } else {
+      const {error} = await supabase.auth.signInWithPassword({email,password:pass});
+      if(error) setError(error.message);
+    }
     setLoading(false);
   };
+
+  const inp2 = { background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"11px 14px", fontSize:14, color:C.text, outline:"none", width:"100%" };
+
+  // ── Forgot password screen
+  if(isForgot) return (
+    <div style={{ minHeight:"100vh", background:`radial-gradient(ellipse at top,#0d2020 0%,${C.bg} 60%)`, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ width:"100%", maxWidth:380 }}>
+        <div style={{ textAlign:"center", marginBottom:28 }}>
+          <div style={{ width:52, height:52, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, borderRadius:16, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px", boxShadow:`0 0 32px rgba(38,166,154,0.3)` }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </div>
+          <h1 style={{ fontFamily:"'Fraunces',serif", fontSize:"1.6rem", color:C.text, margin:0 }}>FisioApp</h1>
+        </div>
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:"22px 20px" }}>
+          <h2 style={{ color:C.text, fontSize:"1rem", fontWeight:700, margin:"0 0 6px" }}>Recuperar contraseña</h2>
+          <p style={{ color:C.muted, fontSize:"0.85rem", margin:"0 0 16px", lineHeight:1.5 }}>
+            Ingresa tu correo y te enviaremos un link para crear una nueva contraseña.
+          </p>
+          {!success ? (
+            <>
+              <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Correo electrónico" type="email"
+                style={{...inp2, marginBottom:12}} onKeyDown={e=>e.key==="Enter"&&handleForgot()}/>
+              {error && <div style={{ background:"rgba(239,83,80,0.1)", border:"1px solid rgba(239,83,80,0.3)", borderRadius:10, padding:"8px 12px", color:C.danger, fontSize:13, marginBottom:12 }}>{error}</div>}
+              <button onClick={handleForgot} disabled={loading}
+                style={{ width:"100%", background:C.accentG, border:"none", borderRadius:12, padding:12, color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", opacity:loading?0.7:1, marginBottom:12 }}>
+                {loading?"Enviando...":"Enviar link de recuperación"}
+              </button>
+            </>
+          ) : (
+            <div style={{ background:"rgba(102,187,106,0.1)", border:"1px solid rgba(102,187,106,0.3)", borderRadius:12, padding:"12px 14px", marginBottom:16 }}>
+              <p style={{ color:C.success, fontSize:14, margin:0, lineHeight:1.6 }}>✓ {success}</p>
+            </div>
+          )}
+          <button onClick={()=>{ setIsForgot(false); setError(""); setSuccess(""); }}
+            style={{ width:"100%", background:"transparent", border:`1px solid ${C.border}`, borderRadius:12, padding:11, color:C.muted, cursor:"pointer", fontSize:14 }}>
+            Volver al inicio de sesión
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ minHeight:"100vh", background:`radial-gradient(ellipse at top,#0d2020 0%,${C.bg} 60%)`, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
       <div style={{ width:"100%", maxWidth:380 }}>
-        <div style={{ textAlign:"center", marginBottom:32 }}>
-          <div style={{ width:64, height:64, background:`linear-gradient(135deg,${C.accent},#1a7a75)`, borderRadius:20, display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, fontWeight:700, color:"#fff", margin:"0 auto 16px", boxShadow:`0 0 40px rgba(38,166,154,0.3)` }}>F</div>
-          <h1 style={{ fontFamily:"'Fraunces',serif", fontSize:32, color:C.text, margin:0 }}>FisioApp</h1>
-          <p style={{ color:C.muted, fontSize:14, marginTop:6 }}>Tu plataforma de fisioterapia</p>
-        </div>
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:24, padding:24 }}>
-          <h2 style={{ color:C.text, fontSize:18, fontWeight:600, marginBottom:20 }}>{isReg?"Crear cuenta":"Iniciar sesión"}</h2>
-          <div style={{ display:"grid", gap:12, marginBottom:16 }}>
-            <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Correo electrónico" type="email" style={inp}/>
-            <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="Contraseña" type="password" style={inp} onKeyDown={e=>e.key==="Enter"&&handle()}/>
+        <div style={{ textAlign:"center", marginBottom:28 }}>
+          <div style={{ width:52, height:52, background:C.accentG, borderRadius:16, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px", boxShadow:`0 0 32px rgba(38,166,154,0.3)` }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
           </div>
-          {error && <div style={{ background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.3)", borderRadius:10, padding:"8px 12px", color:C.danger, fontSize:13, marginBottom:12 }}>{error}</div>}
+          <h1 style={{ fontFamily:"'Fraunces',serif", fontSize:"1.7rem", color:C.text, margin:0 }}>FisioApp</h1>
+          <p style={{ color:C.muted, fontSize:"0.85rem", marginTop:5 }}>Tu plataforma de fisioterapia</p>
+        </div>
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:20, padding:"22px 20px" }}>
+          <h2 style={{ color:C.text, fontSize:"1rem", fontWeight:600, margin:"0 0 16px" }}>
+            {isReg?"Crear cuenta":"Iniciar sesión"}
+          </h2>
+          <div style={{ display:"grid", gap:11, marginBottom:14 }}>
+            {isReg && (
+              <input value={name} onChange={e=>setName(e.target.value)} placeholder="Nombre completo *" type="text" style={inp2}/>
+            )}
+            <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Correo electrónico" type="email" style={inp2}/>
+            <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="Contraseña" type="password" style={inp2}
+              onKeyDown={e=>e.key==="Enter"&&handle()}/>
+          </div>
+          {error && <div style={{ background:"rgba(239,83,80,0.1)", border:"1px solid rgba(239,83,80,0.3)", borderRadius:10, padding:"8px 12px", color:C.danger, fontSize:13, marginBottom:12 }}>{error}</div>}
           <button onClick={handle} disabled={loading}
-            style={{ width:"100%", background:`linear-gradient(135deg,${C.accent},#1a7a75)`, border:"none", borderRadius:14, padding:"13px", color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer", opacity:loading?0.7:1, boxShadow:`0 4px 20px rgba(38,166,154,0.25)` }}>
+            style={{ width:"100%", background:C.accentG, border:"none", borderRadius:12, padding:12, color:"#fff", fontWeight:700, fontSize:14, cursor:"pointer", opacity:loading?0.7:1, boxShadow:`0 4px 20px rgba(38,166,154,0.25)`, marginBottom:12 }}>
             {loading?"Cargando...":isReg?"Crear cuenta":"Entrar"}
           </button>
-          <p style={{ textAlign:"center", color:C.muted, fontSize:13, marginTop:16 }}>
+          {!isReg && (
+            <button onClick={()=>{ setIsForgot(true); setError(""); }}
+              style={{ width:"100%", background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:"0.85rem", marginBottom:8, padding:"2px 0" }}>
+              ¿Olvidaste tu contraseña?
+            </button>
+          )}
+          <p style={{ textAlign:"center", color:C.muted, fontSize:"0.85rem", margin:0 }}>
             {isReg?"¿Ya tienes cuenta?":"¿No tienes cuenta?"}{" "}
-            <button onClick={()=>setIsReg(!isReg)} style={{ color:C.accent, background:"none", border:"none", cursor:"pointer", fontWeight:600 }}>
+            <button onClick={()=>{ setIsReg(!isReg); setError(""); setName(""); }}
+              style={{ color:C.accent, background:"none", border:"none", cursor:"pointer", fontWeight:600 }}>
               {isReg?"Inicia sesión":"Regístrate"}
             </button>
           </p>
@@ -1583,7 +1660,7 @@ function DashboardView({ user, onNavigate }) {
   const approveRequest = async (req) => {
     // Create patient record linked to this user
     const {data:pat} = await supabase.from("patients").insert({
-      name: req.email.split("@")[0],
+      name: req.display_name || req.email.split("@")[0],
       email: req.email,
       therapist_id: user.id,
       user_id: req.user_id,
@@ -1633,7 +1710,8 @@ function DashboardView({ user, onNavigate }) {
             {requests.map(req=>(
               <div key={req.id} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(0,0,0,0.2)",borderRadius:10,padding:"8px 12px"}}>
                 <div style={{flex:1,minWidth:0}}>
-                  <p style={{color:C.text,fontSize:13,fontWeight:600,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{req.email}</p>
+                  <p style={{color:C.text,fontSize:13,fontWeight:600,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{req.display_name||req.email.split("@")[0]}</p>
+                  <p style={{color:C.dim,fontSize:11,margin:"1px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{req.email}</p>
                   <p style={{color:C.dim,fontSize:11,margin:"2px 0 0"}}>{new Date(req.created_at).toLocaleDateString("es-CO")}</p>
                 </div>
                 <button onClick={()=>approveRequest(req)}
@@ -1835,7 +1913,11 @@ export default function App() {
     if(!existing) {
       // Silently fail if table doesn't exist yet
       try {
-        await supabase.from("access_requests").insert({user_id:user.id, email:user.email});
+        const meta = user.user_metadata||{};
+        await supabase.from("access_requests").insert({
+          user_id:user.id, email:user.email,
+          display_name: meta.full_name||meta.name||""
+        });
       } catch(e) {}
     }
     setRole("pending");
