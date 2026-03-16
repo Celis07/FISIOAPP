@@ -2,22 +2,38 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#26a69a" />
+    <meta name="description" content="Plataforma profesional de fisioterapia" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="FisioApp" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/manifest.json" />
     <title>FisioApp</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
       * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
-      body { background: #0f1117; color: #e2e8f0; margin: 0; }
+      body { background: #0b0e1a; color: #e8edf5; margin: 0; }
       ::-webkit-scrollbar { width: 4px; height: 4px; }
-      ::-webkit-scrollbar-track { background: #1a1d27; }
-      ::-webkit-scrollbar-thumb { background: #2d3348; border-radius: 4px; }
-      input, textarea, select { color: #e2e8f0 !important; }
-      input::placeholder, textarea::placeholder { color: #4a5270 !important; }
+      ::-webkit-scrollbar-track { background: #1a2035; }
+      ::-webkit-scrollbar-thumb { background: #263050; border-radius: 4px; }
+      input, textarea, select { color: #e8edf5 !important; }
+      input::placeholder, textarea::placeholder { color: #3d4f7c !important; }
     </style>
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js')
+            .then(reg => console.log('SW registered:', reg.scope))
+            .catch(err => console.log('SW error:', err));
+        });
+      }
+    </script>
   </body>
 </html>

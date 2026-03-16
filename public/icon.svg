@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0b0e1a"/>
+  <rect width="512" height="512" rx="112" fill="url(#g)"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#26a69a"/>
+      <stop offset="100%" stop-color="#00796b"/>
+    </linearGradient>
+  </defs>
+  <!-- EKG/heartbeat line -->
+  <polyline points="80,256 160,256 200,160 240,352 280,200 320,280 360,256 432,256"
+    fill="none" stroke="white" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- F letter subtle -->
+  <text x="50%" y="88%" text-anchor="middle" font-family="Georgia,serif" font-size="72" font-weight="700" fill="rgba(255,255,255,0.15)">FisioApp</text>
+</svg>

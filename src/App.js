@@ -457,6 +457,117 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
   );
 }
 
+
+// ─── PDF EXPORT ────────────────────────────────────────────────────────────────
+function exportPDF(patient, prescription) {
+  if (!prescription) return;
+
+  const BLOCK_COLORS = {
+    "Terapia":                "#ef5350",
+    "Calentamiento / Activación": "#ffa726",
+    "Trabajo central":        "#66bb6a",
+    "Sin bloque":             "#7c8db5",
+  };
+
+  const blocks = {};
+  (prescription.exercises || []).forEach(ex => {
+    const b = ex.block || "Sin bloque";
+    if (!blocks[b]) blocks[b] = [];
+    blocks[b].push(ex);
+  });
+
+  const blockOrder = ["Terapia","Calentamiento / Activación","Trabajo central","Sin bloque"];
+  const date = new Date(prescription.created_at).toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"});
+
+  let html = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="utf-8"/>
+      <title>Plan de ejercicios – ${patient.name}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        * { font-family: 'Inter', sans-serif; box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #fff; color: #1a1a2e; padding: 32px; max-width: 800px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 2px solid #26a69a; margin-bottom: 24px; }
+        .logo { display: flex; align-items: center; gap: 10px; }
+        .logo-box { width: 40px; height: 40px; background: linear-gradient(135deg,#26a69a,#00796b); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 18px; }
+        .logo-name { font-size: 20px; font-weight: 800; color: #1a1a2e; }
+        .patient-info h1 { font-size: 22px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+        .patient-info p { font-size: 13px; color: #666; }
+        .meta { text-align: right; }
+        .meta p { font-size: 12px; color: #888; }
+        .note-box { background: #e8f5e9; border-left: 3px solid #26a69a; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: #1b5e20; }
+        .block-title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; margin-top: 20px; }
+        .block-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .block-label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.8px; }
+        .ex-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #f8f9fa; border-radius: 8px; margin-bottom: 6px; }
+        .ex-name { font-weight: 600; font-size: 14px; }
+        .ex-cat { font-size: 11px; color: #888; margin-top: 2px; }
+        .ex-dose { font-weight: 700; font-size: 14px; color: #26a69a; white-space: nowrap; }
+        .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e0e0e0; display: flex; justify-content: space-between; font-size: 11px; color: #aaa; }
+        @media print { body { padding: 20px; } }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div>
+          <div class="logo" style="margin-bottom:10px">
+            <div class="logo-box">F</div>
+            <span class="logo-name">FisioApp</span>
+          </div>
+          <div class="patient-info">
+            <h1>${patient.name}</h1>
+            <p>${patient.condition || ""}${patient.age ? " · " + patient.age + " años" : ""}</p>
+          </div>
+        </div>
+        <div class="meta">
+          <p><strong>Plan de ejercicios</strong></p>
+          <p>${date}</p>
+          <p>${prescription.exercises?.length || 0} ejercicios</p>
+        </div>
+      </div>
+      ${prescription.note ? '<div class="note-box">📋 ' + prescription.note + '</div>' : ''}
+  `;
+
+  blockOrder.forEach(blockName => {
+    const exList = blocks[blockName];
+    if (!exList || !exList.length) return;
+    const color = BLOCK_COLORS[blockName] || "#7c8db5";
+    html += `
+      <div class="block-title">
+        <div class="block-dot" style="background:${color}"></div>
+        <span class="block-label" style="color:${color}">${blockName}</span>
+      </div>
+    `;
+    exList.forEach((ex, i) => {
+      html += `
+        <div class="ex-row">
+          <div>
+            <div class="ex-name">${i+1}. ${ex.name}</div>
+            <div class="ex-cat">${ex.category || ""}</div>
+            ${ex.description ? '<div style="font-size:12px;color:#666;margin-top:3px">' + ex.description + '</div>' : ''}
+          </div>
+          <div class="ex-dose">${ex.sets} × ${ex.reps}</div>
+        </div>
+      `;
+    });
+  });
+
+  html += `
+      <div class="footer">
+        <span>Generado por FisioApp</span>
+        <span>${new Date().toLocaleDateString("es-CO")}</span>
+      </div>
+    </body></html>
+  `;
+
+  const win = window.open('', '_blank');
+  win.document.write(html);
+  win.document.close();
+  setTimeout(() => win.print(), 500);
+}
+
 // ─── PATIENT PROFILE ──────────────────────────────────────────────────────────
 function PatientProfile({ patient, user, onBack, onPrescribe, onApprove }) {
   const [prescriptions,setPrescriptions] = useState([]);
@@ -540,17 +651,26 @@ function PatientProfile({ patient, user, onBack, onPrescribe, onApprove }) {
         ))}
       </div>
 
-      {/* Tabs */}
-      <div style={{ display:"flex", gap:4, background:C.surface, border:`1px solid ${C.border}`, borderRadius:18, padding:4, marginBottom:16 }}>
-        {[{id:"plans",label:"Planes",icon:"G"},{id:"progress",label:"Progreso"}].map(t=>(
-          <button key={t.id} onClick={()=>setActiveTab(t.id)}
-            style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"10px", borderRadius:14, border:"none", cursor:"pointer", fontWeight:600, fontSize:14, transition:"all 0.2s",
-              background: activeTab===t.id ? C.accent : "transparent",
-              color: activeTab===t.id ? "#fff" : C.muted
-            }}>
-            {t.label}
+      {/* Tabs + PDF */}
+      <div style={{ display:"flex", gap:8, marginBottom:16, alignItems:"center" }}>
+        <div style={{ flex:1, display:"flex", gap:3, background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:3 }}>
+          {[{id:"plans",label:"Planes"},{id:"progress",label:"Progreso"}].map(t=>(
+            <button key={t.id} onClick={()=>setActiveTab(t.id)}
+              style={{ flex:1, padding:"9px", borderRadius:13, border:"none", cursor:"pointer", fontWeight:600, fontSize:13, transition:"all 0.2s",
+                background: activeTab===t.id ? C.accent : "transparent",
+                color: activeTab===t.id ? "#fff" : C.muted
+              }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {activeTab==="plans" && prescriptions.length>0 && (
+          <button onClick={()=>exportPDF(patient, prescriptions[0])}
+            style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"9px 14px", color:C.muted, cursor:"pointer", fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:6, flexShrink:0, whiteSpace:"nowrap" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar PDF
           </button>
-        ))}
+        )}
       </div>
 
       {/* Plans */}
@@ -753,13 +873,14 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                     <span style={{ color:C.text, fontWeight:600, fontSize:15 }}>{p.name}</span>
-                    {p.user_id && p.invite_status==="aprobado" && <span style={{ fontSize:10, background:"rgba(52,211,153,0.15)", color:"#34d399", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>✓ Activo</span>}
-                    {p.user_id && p.invite_status==="pendiente" && <span style={{ fontSize:10, background:"rgba(251,191,36,0.15)", color:"#fbbf24", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>Pendiente</span>}
+                    {p.invite_status==="aprobado" && <span style={{ fontSize:10, background:"rgba(52,211,153,0.15)", color:"#34d399", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>Activo</span>}
+                    {p.invite_status==="pendiente" && <span style={{ fontSize:10, background:"rgba(251,191,36,0.15)", color:"#fbbf24", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>Pendiente</span>}
+                    {!p.invite_status && !p.user_id && <span style={{ fontSize:10, background:"rgba(239,83,80,0.1)", color:"#ef5350", padding:"2px 8px", borderRadius:20, fontWeight:600 }}>Sin acceso</span>}
                   </div>
                   <p style={{ color:C.muted, fontSize:13, marginTop:3 }}>{p.condition||"Sin diagnóstico"}{p.age?` · ${p.age} años`:""}</p>
                 </div>
                 <div style={{ display:"flex", gap:8 }} onClick={e=>e.stopPropagation()}>
-                  {p.user_id && p.invite_status!=="aprobado" && (
+                  {p.invite_status!=="aprobado" && (
                     <button onClick={()=>approvePatient(p.id)}
                       style={{ background:"rgba(251,191,36,0.15)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:12, padding:"7px 12px", color:"#fbbf24", fontWeight:700, fontSize:13, cursor:"pointer" }}>
                       Aprobar
@@ -993,6 +1114,34 @@ function MessagesView({ user }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+
+// ─── PENDING APPROVAL SCREEN ──────────────────────────────────────────────────
+function PendingApproval({ user }) {
+  return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:24, padding:36, textAlign:"center", maxWidth:360, width:"100%" }}>
+        <div style={{ width:64, height:64, background:"rgba(255,167,38,0.12)", border:"1px solid rgba(255,167,38,0.3)", borderRadius:20, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px" }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ffa726" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <h2 style={{ fontFamily:"'Fraunces',serif", color:C.text, fontSize:22, margin:"0 0 10px" }}>Acceso pendiente</h2>
+        <p style={{ color:C.muted, fontSize:14, lineHeight:1.6, margin:"0 0 8px" }}>
+          Tu cuenta está registrada correctamente.
+        </p>
+        <p style={{ color:C.muted, fontSize:14, lineHeight:1.6, margin:"0 0 24px" }}>
+          Tu fisioterapeuta debe habilitarte el acceso. Una vez aprobado, podrás ver tu plan de ejercicios.
+        </p>
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 14px", marginBottom:20 }}>
+          <p style={{ color:C.dim, fontSize:11, margin:0 }}>Cuenta registrada con</p>
+          <p style={{ color:C.text, fontWeight:600, fontSize:14, margin:"3px 0 0" }}>{user.email}</p>
+        </div>
+        <button onClick={()=>supabase.auth.signOut()} style={{ background:"transparent", border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 20px", color:C.muted, cursor:"pointer", fontSize:14 }}>
+          Cerrar sesión
+        </button>
+      </div>
     </div>
   );
 }
@@ -1478,6 +1627,21 @@ function TherapistApp({ user }) {
   const [prescribePatient,setPrescribePatient]= useState(null);
   const [profilePatient,setProfilePatient]   = useState(null);
   const [collapsed,setCollapsed]             = useState(false);
+  const [installPrompt,setInstallPrompt]     = useState(null);
+  const [showInstallBanner,setShowInstallBanner] = useState(false);
+
+  useEffect(()=>{
+    const handler = e => { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true); };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  },[]);
+
+  const handleInstall = async () => {
+    if(!installPrompt) return;
+    installPrompt.prompt();
+    const {outcome} = await installPrompt.userChoice;
+    if(outcome==='accepted') setShowInstallBanner(false);
+  };
 
   const handleViewProfile = p=>{ setProfilePatient(p); setPrescribePatient(null); };
   const handlePrescribe   = p=>{ setPrescribePatient(p); setProfilePatient(null); setTab("patients"); };
@@ -1494,6 +1658,25 @@ function TherapistApp({ user }) {
 
   return (
     <div style={{minHeight:"100vh",background:C.bg,display:"flex"}}>
+      {/* Install banner */}
+      {showInstallBanner && (
+        <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:30,background:"linear-gradient(135deg,#0d2a28,#0f1e2e)",borderTop:`1px solid rgba(38,166,154,0.3)`,padding:"12px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:36,height:36,background:C.accentG,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </div>
+            <div>
+              <p style={{color:C.text,fontWeight:600,fontSize:14,margin:0}}>Instalar FisioApp</p>
+              <p style={{color:C.muted,fontSize:12,margin:0}}>Accede más rápido desde tu celular o escritorio</p>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:8,flexShrink:0}}>
+            <button onClick={handleInstall} style={{background:C.accentG,border:"none",borderRadius:10,padding:"8px 16px",color:"#fff",fontWeight:700,cursor:"pointer",fontSize:13}}>Instalar</button>
+            <button onClick={()=>setShowInstallBanner(false)} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:10,padding:"8px 12px",color:C.muted,cursor:"pointer",fontSize:13}}>Ahora no</button>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar */}
       <aside style={{width:sideW,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:20,transition:"width 0.25s ease",overflow:"hidden"}}>
         <div style={{padding:"18px 14px 14px",display:"flex",alignItems:"center",gap:12,borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
@@ -1565,8 +1748,16 @@ export default function App() {
 
   useEffect(()=>{
     if(!user){ setRole(null); return; }
+    const THERAPIST_EMAIL = "celisone1@gmail.com";
+    if(user.email === THERAPIST_EMAIL) {
+      setRole("therapist");
+      return;
+    }
     supabase.from("patients").select("id,invite_status").eq("user_id",user.id).maybeSingle()
-      .then(({data})=>setRole(data&&data.invite_status==="aprobado"?"patient":"therapist"));
+      .then(({data})=>{
+        if(data && data.invite_status==="aprobado") setRole("patient");
+        else setRole("pending"); // registered but not approved
+      });
   },[user]);
 
   if(user===undefined) return (
@@ -1586,5 +1777,6 @@ export default function App() {
 
   if(inviteToken) return <InviteHandler token={inviteToken} user={user}/>;
   if(role==="patient") return <PatientApp user={user}/>;
+  if(role==="pending") return <PendingApproval user={user}/>;
   return <TherapistApp user={user}/>;
 }
