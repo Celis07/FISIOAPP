@@ -509,7 +509,10 @@ function PatientProfile({patient,user,onBack,onPrescribe,onApprove}){
                             </div>
                             {exList.map((ex,j)=>(
                               <div key={j} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
-                                <span style={{color:C.text,fontSize:13}}>{ex.name}</span>
+                                <div style={{minWidth:0}}>
+                                  <span style={{color:C.text,fontSize:13}}>{ex.name}</span>
+                                  {ex.video_url&&<a href={ex.video_url} target="_blank" rel="noreferrer" style={{display:"block",color:C.accent,fontSize:11,marginTop:1,textDecoration:"none"}}>▶ ver video</a>}
+                                </div>
                                 <span style={{color:C.accent,fontWeight:700,fontSize:12,flexShrink:0,marginLeft:12}}>{ex.sets}×{ex.reps}</span>
                               </div>
                             ))}
@@ -715,7 +718,7 @@ function PrescribeView({user,patient,onBack,existingPrescription}){
   const [loading,setLoad]=useState(false);
   const [customExs,setCustom]=useState([]);
   const [showNewEx,setNewExOpen]=useState(false);
-  const [newEx,setNewEx]=useState({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10"});
+  const [newEx,setNewEx]=useState({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10",video_url:""});
   const [savingEx,setSavingEx]=useState(false);
 
   const refreshCustom=()=>supabase.from("custom_exercises").select("*").eq("therapist_id",user.id).order("created_at",{ascending:false}).then(({data})=>setCustom((data||[]).map(e=>({id:"custom_"+e.id,dbId:e.id,name:e.name,description:e.description||"",category:e.category||"Personalizado",defaultSets:e.default_sets||3,defaultReps:e.default_reps||"10",isCustom:true}))));
@@ -724,10 +727,10 @@ function PrescribeView({user,patient,onBack,existingPrescription}){
   const saveNewEx=async()=>{
     if(!newEx.name.trim())return;
     setSavingEx(true);
-    const{data,error}=await supabase.from("custom_exercises").insert({therapist_id:user.id,name:newEx.name.trim(),description:newEx.description,category:newEx.category,default_block:activeBlock,default_sets:parseInt(newEx.default_sets)||3,default_reps:newEx.default_reps}).select().single();
+    const{data,error}=await supabase.from("custom_exercises").insert({therapist_id:user.id,name:newEx.name.trim(),description:newEx.description,category:newEx.category,default_block:activeBlock,default_sets:parseInt(newEx.default_sets)||3,default_reps:newEx.default_reps,video_url:newEx.video_url||null}).select().single();
     if(error){alert("Error: "+error.message);setSavingEx(false);return;}
-    if(data){const exId=900000+Math.floor(Math.random()*99999);const ex={id:exId,name:data.name,description:data.description||"",category:data.category,defaultSets:data.default_sets,defaultReps:data.default_reps,isCustom:true,dbId:data.id};setSel(prev=>({...prev,[activeBlock]:[...prev[activeBlock],{...ex,sets:ex.defaultSets,reps:ex.defaultReps,block:activeBlock}]}));refreshCustom();}
-    setNewEx({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10"});setNewExOpen(false);setSavingEx(false);
+    if(data){const exId=900000+Math.floor(Math.random()*99999);const ex={id:exId,name:data.name,description:data.description||"",category:data.category,defaultSets:data.default_sets,defaultReps:data.default_reps,video_url:data.video_url||null,isCustom:true,dbId:data.id};setSel(prev=>({...prev,[activeBlock]:[...prev[activeBlock],{...ex,sets:ex.defaultSets,reps:ex.defaultReps,block:activeBlock}]}));refreshCustom();}
+    setNewEx({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10",video_url:""});setNewExOpen(false);setSavingEx(false);
   };
 
   const allExercises=[...customExs,...EXERCISES];
@@ -784,6 +787,10 @@ function PrescribeView({user,patient,onBack,existingPrescription}){
               <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Reps</label><input value={newEx.default_reps} onChange={e=>setNewEx({...newEx,default_reps:e.target.value})} style={{...inp,textAlign:"center"}}/></div>
             </div>
           </div>
+          <div style={{marginTop:10}}>
+            <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:3}}>URL de video (opcional)</label>
+            <input value={newEx.video_url||""} onChange={e=>setNewEx({...newEx,video_url:e.target.value})} placeholder="https://youtube.com/..." style={inp}/>
+          </div>
           <p style={{color:C.muted,fontSize:12,marginTop:10}}>Se agregará al bloque: <strong style={{color:C.accentL}}>{activeBlock}</strong></p>
           <div style={{display:"flex",gap:10,marginTop:16}}>
             <Btn onClick={saveNewEx} disabled={!newEx.name.trim()||savingEx} variant="primary" style={{flex:1}}>{savingEx?"Guardando...":"Crear y agregar"}</Btn>
@@ -794,7 +801,7 @@ function PrescribeView({user,patient,onBack,existingPrescription}){
 
       <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,color:C.muted,background:"none",border:"none",cursor:"pointer",fontSize:13,marginBottom:16}}>{I.back} Volver</button>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:20}}>
         {/* LEFT: Library */}
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -825,16 +832,19 @@ function PrescribeView({user,patient,onBack,existingPrescription}){
             {filtered.length===0?<p style={{color:C.muted,fontSize:12,textAlign:"center",padding:"16px 0"}}>Sin resultados</p>:filtered.map(ex=>{
               const inBlock=blockOf(ex);
               return(
-                <div key={ex.id} onClick={()=>inBlock?removeEx(ex,inBlock):addEx(ex)}
-                  style={{display:"flex",alignItems:"center",gap:10,background:inBlock?"rgba(38,166,154,.07)":C.card,border:`1px solid ${inBlock?"rgba(38,166,154,.25)":C.border}`,borderRadius:10,padding:"9px 12px",cursor:"pointer",transition:"all .15s"}}>
-                  <div style={{flex:1,minWidth:0}}>
+                <div key={ex.id}
+                  style={{display:"flex",alignItems:"center",gap:10,background:inBlock?"rgba(38,166,154,.07)":C.card,border:`1px solid ${inBlock?"rgba(38,166,154,.25)":C.border}`,borderRadius:10,padding:"9px 12px",transition:"all .15s"}}>
+                  <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>inBlock?removeEx(ex,inBlock):addEx(ex)}>
                     <p style={{color:C.text,fontSize:12,fontWeight:500,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ex.name}</p>
-                    <p style={{color:C.muted,fontSize:10,margin:"1px 0 0"}}>{ex.category}</p>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginTop:1}}>
+                      <p style={{color:C.muted,fontSize:10,margin:0}}>{ex.category}</p>
+                      {ex.video_url&&<a href={ex.video_url} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{color:C.accent,fontSize:10,textDecoration:"none",flexShrink:0}}>▶ video</a>}
+                    </div>
                   </div>
                   {inBlock?(
-                    <span style={{fontSize:10,color:BM[inBlock]?.c||C.accent,fontWeight:700,background:(BM[inBlock]?.bg||"rgba(38,166,154,.1)"),border:`1px solid ${BM[inBlock]?.c||C.accent}33`,borderRadius:6,padding:"1px 6px",flexShrink:0}}>{inBlock.split(" ")[0]}</span>
+                    <span onClick={()=>removeEx(ex,inBlock)} style={{fontSize:10,color:BM[inBlock]?.c||C.accent,fontWeight:700,background:(BM[inBlock]?.bg||"rgba(38,166,154,.1)"),border:`1px solid ${BM[inBlock]?.c||C.accent}33`,borderRadius:6,padding:"1px 6px",flexShrink:0,cursor:"pointer"}}>{inBlock.split(" ")[0]}</span>
                   ):(
-                    <span style={{color:C.dim,fontSize:10,flexShrink:0}}>+ agregar</span>
+                    <span onClick={()=>addEx(ex)} style={{color:C.dim,fontSize:10,flexShrink:0,cursor:"pointer"}}>+ agregar</span>
                   )}
                 </div>
               );
@@ -1223,37 +1233,96 @@ function TherapistApp({user}){
 
 // ─── INVITE HANDLER ───────────────────────────────────────────────────────────
 function InviteHandler({token,user}){
-  const [status,setStatus]=useState("loading");
+  // If user is already logged in → link their account
+  const [status,setStatus]=useState(user?"linking":"idle");
+  const [name,setName]=useState("");
+  const [email,setEmail]=useState("");
+  const [pass,setPass]=useState("");
+  const [loading,setLoad]=useState(false);
+  const [error,setError]=useState("");
+  const [patientName,setPatientName]=useState("");
+
+  // Fetch patient name to personalise the screen
   useEffect(()=>{
-    supabase.from("patients").select("id,invite_status").eq("invite_token",token).maybeSingle()
-      .then(async({data})=>{
+    supabase.from("patients").select("id,name,invite_status").eq("invite_token",token).maybeSingle()
+      .then(({data})=>{
         if(!data){setStatus("invalid");return;}
-        if(data.invite_status==="aprobado"){setStatus("already");return;}
-        const{error}=await supabase.from("patients").update({user_id:user.id,invite_status:"pendiente"}).eq("invite_token",token);
-        setStatus(error?"error":"success");
+        setPatientName(data.name||"");
+        if(user){
+          // Already logged in: just link
+          if(data.invite_status==="aprobado"){setStatus("already");return;}
+          supabase.from("patients").update({user_id:user.id,invite_status:"pendiente"}).eq("invite_token",token)
+            .then(({error})=>setStatus(error?"error":"success"));
+        } else {
+          setStatus("idle");
+          // Pre-fill name from patient record if available
+          if(data.name) setName(data.name);
+        }
       });
-  },[token,user.id]);
+  },[token,user]);
 
-  const msgs={
-    loading:{title:"Verificando...",sub:""},
-    success:{title:"Solicitud enviada",sub:"Tu fisioterapeuta revisará tu acceso pronto."},
-    already:{title:"Ya tienes acceso",sub:"Entra normalmente a la app."},
-    invalid:{title:"Link inválido",sub:"Este link no existe o ya fue usado."},
-    error:  {title:"Error",sub:"Inténtalo más tarde."},
+  const register=async()=>{
+    if(!name.trim()||!email.trim()||!pass.trim()){setError("Completa todos los campos");return;}
+    setLoad(true);setError("");
+    // Sign up without email confirmation
+    const{data:authData,error:authErr}=await supabase.auth.signUp({
+      email:email.trim(),password:pass,
+      options:{data:{full_name:name.trim()},emailRedirectTo:undefined}
+    });
+    if(authErr){setError(authErr.message);setLoad(false);return;}
+    const uid=authData?.user?.id;
+    if(!uid){setError("Error al crear la cuenta");setLoad(false);return;}
+    // Link to patient record
+    await supabase.from("patients").update({user_id:uid,invite_status:"pendiente",name:name.trim()}).eq("invite_token",token);
+    setStatus("success");setLoad(false);
   };
-  const m=msgs[status]||msgs.error;
 
-  return(
+  const wrap=(children)=>(
     <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:"28px 24px",textAlign:"center",maxWidth:320,width:"100%"}}>
-        <div style={{width:44,height:44,background:C.accentG,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:"28px 24px",maxWidth:360,width:"100%"}}>
+        <div style={{width:40,height:40,background:C.accentG,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
         </div>
-        <h2 style={{color:C.text,fontSize:17,fontWeight:700,margin:"0 0 8px"}}>{m.title}</h2>
-        {m.sub&&<p style={{color:C.muted,fontSize:13,lineHeight:1.6,margin:"0 0 20px"}}>{m.sub}</p>}
-        {status!=="loading"&&<Btn onClick={()=>window.location.href="/"} variant="ghost" style={{width:"100%"}}>Ir al inicio</Btn>}
+        {children}
       </div>
     </div>
+  );
+
+  if(status==="linking"||status==="loading") return wrap(<p style={{color:C.muted,textAlign:"center",fontSize:13}}>Verificando...</p>);
+  if(status==="invalid") return wrap(<><h2 style={{color:C.text,fontSize:16,fontWeight:700,textAlign:"center",margin:"0 0 8px"}}>Link inválido</h2><p style={{color:C.muted,fontSize:13,textAlign:"center",margin:"0 0 16px"}}>Este link no existe o ya fue usado.</p><Btn onClick={()=>window.location.href="/"} variant="ghost" style={{width:"100%"}}>Ir al inicio</Btn></>);
+  if(status==="already") return wrap(<><h2 style={{color:C.text,fontSize:16,fontWeight:700,textAlign:"center",margin:"0 0 8px"}}>Ya tienes acceso</h2><p style={{color:C.muted,fontSize:13,textAlign:"center",margin:"0 0 16px"}}>Tu cuenta ya está vinculada.</p><Btn onClick={()=>window.location.href="/"} variant="primary" style={{width:"100%"}}>Abrir FisioApp</Btn></>);
+  if(status==="success") return wrap(<><h2 style={{color:C.text,fontSize:16,fontWeight:700,textAlign:"center",margin:"0 0 8px"}}>¡Registro exitoso!</h2><p style={{color:C.muted,fontSize:13,textAlign:"center",lineHeight:1.6,margin:"0 0 16px"}}>Tu fisioterapeuta aprobará tu acceso pronto. Inicia sesión para entrar.</p><Btn onClick={()=>window.location.href="/"} variant="primary" style={{width:"100%"}}>Iniciar sesión</Btn></>);
+  if(status==="error") return wrap(<><h2 style={{color:C.text,fontSize:16,fontWeight:700,textAlign:"center",margin:"0 0 8px"}}>Algo salió mal</h2><p style={{color:C.muted,fontSize:13,textAlign:"center",margin:"0 0 16px"}}>Inténtalo de nuevo.</p><Btn onClick={()=>window.location.href="/"} variant="ghost" style={{width:"100%"}}>Volver</Btn></>);
+
+  // idle — show registration form
+  return wrap(
+    <>
+      <h2 style={{color:C.text,fontSize:17,fontWeight:700,margin:"0 0 4px",textAlign:"center"}}>Crear tu cuenta</h2>
+      {patientName&&<p style={{color:C.muted,fontSize:12,textAlign:"center",margin:"0 0 18px"}}>Tu fisioterapeuta te ha invitado a FisioApp</p>}
+      <div style={{display:"grid",gap:9,marginBottom:14}}>
+        <div>
+          <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:3}}>Nombre completo</label>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Tu nombre" style={inp}/>
+        </div>
+        <div>
+          <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:3}}>Correo electrónico</label>
+          <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@correo.com" type="email" style={inp}/>
+        </div>
+        <div>
+          <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:3}}>Contraseña</label>
+          <input value={pass} onChange={e=>setPass(e.target.value)} placeholder="Mínimo 6 caracteres" type="password" style={inp}
+            onKeyDown={e=>e.key==="Enter"&&register()}/>
+        </div>
+      </div>
+      {error&&<p style={{color:C.danger,fontSize:12,background:"rgba(224,82,82,.08)",border:"1px solid rgba(224,82,82,.2)",borderRadius:8,padding:"7px 10px",marginBottom:12}}>{error}</p>}
+      <Btn onClick={register} disabled={loading} variant="primary" style={{width:"100%",marginBottom:12}}>
+        {loading?"Creando cuenta...":"Crear cuenta"}
+      </Btn>
+      <p style={{color:C.muted,fontSize:12,textAlign:"center",margin:0}}>
+        ¿Ya tienes cuenta?{" "}
+        <button onClick={()=>window.location.href="/"} style={{background:"none",border:"none",color:C.accent,cursor:"pointer",fontSize:12,fontWeight:600}}>Inicia sesión</button>
+      </p>
+    </>
   );
 }
 
@@ -1276,14 +1345,22 @@ export default function App(){
       if(user.email===THERAPIST_EMAIL){setRole("therapist");return;}
       const{data:patData}=await supabase.from("patients").select("id,invite_status").eq("user_id",user.id).maybeSingle();
       if(patData&&patData.invite_status==="aprobado"){setRole("patient");return;}
-      try{const meta=user.user_metadata||{};await supabase.from("access_requests").insert({user_id:user.id,email:user.email,display_name:meta.full_name||meta.name||""}).then(r=>{if(r.error&&r.error.code==="23505")return;});}catch(e){}
+      try{
+        const meta=user.user_metadata||{};
+        // Check first to avoid duplicates
+        const{data:existing}=await supabase.from("access_requests").select("id").eq("user_id",user.id).maybeSingle();
+        if(!existing){
+          await supabase.from("access_requests").insert({user_id:user.id,email:user.email,display_name:meta.full_name||meta.name||""});
+        }
+      }catch(e){}
       setRole("pending");
     })();
   },[user]);
 
   if(user===undefined)return<div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{width:24,height:24,border:`2px solid ${C.accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin .8s linear infinite"}}/><style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div>;
-  if(!user)return<LoginView/>;
+  // Show invite form even if not logged in
   if(inviteToken)return<InviteHandler token={inviteToken} user={user}/>;
+  if(!user)return<LoginView/>;
   if(role==="patient")return<PatientApp user={user}/>;
   if(role==="pending")return<PendingApproval user={user}/>;
   if(role==="therapist")return<TherapistApp user={user}/>;

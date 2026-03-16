@@ -247,9 +247,10 @@ export default function PatientApp({user}){
                                     <p style={{color:isDone?C.dim:C.accent,fontWeight:700,fontSize:"0.8rem",margin:0,flexShrink:0,whiteSpace:"nowrap"}}>{ex.sets}×{ex.reps}</p>
                                   </div>
                                   {ex.description&&<p style={{color:isDone?C.dim:C.muted,fontSize:"0.75rem",margin:"5px 0 0",lineHeight:1.5}}>{ex.description}</p>}
-                                  <div style={{marginTop:5,display:"flex",gap:5,alignItems:"center"}}>
+                                  <div style={{marginTop:5,display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
                                     <span style={{fontSize:"0.65rem",color:C.dim,background:"rgba(255,255,255,.03)",padding:"1px 7px",borderRadius:5,border:`1px solid ${C.border}`}}>{ex.category}</span>
                                     {isDone&&<span style={{fontSize:"0.65rem",color:C.success,fontWeight:600}}>Listo</span>}
+                                    {ex.video_url&&<a href={ex.video_url} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{fontSize:"0.65rem",color:C.accent,textDecoration:"none",fontWeight:600}}>▶ Ver video</a>}
                                   </div>
                                 </div>
                               </div>
