@@ -1,15 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#0b0e1a"/>
-  <rect width="512" height="512" rx="112" fill="url(#g)"/>
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#26a69a"/>
-      <stop offset="100%" stop-color="#00796b"/>
-    </linearGradient>
-  </defs>
-  <!-- EKG/heartbeat line -->
-  <polyline points="80,256 160,256 200,160 240,352 280,200 320,280 360,256 432,256"
-    fill="none" stroke="white" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- F letter subtle -->
-  <text x="50%" y="88%" text-anchor="middle" font-family="Georgia,serif" font-size="72" font-weight="700" fill="rgba(255,255,255,0.15)">FisioApp</text>
+  <rect width="512" height="512" rx="112" fill="#0891b2"/>
+  <line x1="50" y1="330" x2="462" y2="330" stroke="white" stroke-width="22" stroke-linecap="round" opacity="0.4"/>
+  <path d="M50,330 Q120,170 196,330 Q272,490 348,330 Q424,170 500,330" fill="rgba(255,255,255,0.12)" stroke="white" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M156,240 Q256,30 356,240" fill="none" stroke="white" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="256" cy="44" r="40" fill="white"/>
 </svg>

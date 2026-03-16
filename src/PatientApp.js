@@ -2,21 +2,21 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabase";
 
 const C = {
-  bg:"#09090f", surface:"#111118", card:"#18181f", border:"#242433",
-  accent:"#26a69a", accentL:"#4db6ac", accentG:"linear-gradient(135deg,#26a69a,#00897b)",
-  text:"#e2e8f4", muted:"#6b7390", dim:"#383d52",
-  success:"#4caf79", warn:"#e09c3a", danger:"#e05252",
+  bg:"#f0f4f8", surface:"#ffffff", card:"#f8f9fb", border:"#e2e6ed",
+  accent:"#0891b2", accentL:"#22d3ee", accentG:"linear-gradient(135deg,#0891b2,#0e7490)",
+  text:"#0f172a", muted:"#64748b", dim:"#94a3b8",
+  success:"#16a34a", warn:"#d97706", danger:"#dc2626",
 };
 const BM={
-  "Terapia":                    {c:"#e05252",bg:"rgba(224,82,82,0.08)"},
-  "Calentamiento / Activación": {c:"#e09c3a",bg:"rgba(224,156,58,0.08)"},
-  "Trabajo central":            {c:"#4caf79",bg:"rgba(76,175,121,0.08)"},
-  "Sin bloque":                 {c:"#6b7390",bg:"rgba(107,115,144,0.06)"},
+  "Terapia":                    {c:"#dc2626",bg:"rgba(220,38,38,0.06)"},
+  "Calentamiento / Activación": {c:"#d97706",bg:"rgba(217,119,6,0.06)"},
+  "Trabajo central":            {c:"#16a34a",bg:"rgba(22,163,74,0.06)"},
+  "Sin bloque":                 {c:"#64748b",bg:"rgba(100,116,139,0.06)"},
 };
 
 // ── Skeleton loader ────────────────────────────────────────────────────────────
 function Skel({w="100%",h=14,r=6,style={}}){
-  return<div style={{width:w,height:h,borderRadius:r,background:C.border,animation:"shimmer 1.4s ease infinite",...style}}/>;
+  return<div style={{width:w,height:h,borderRadius:r,background:"#e2e6ed",animation:"shimmer 1.4s ease infinite",...style}}/>;
 }
 function PlanSkeleton(){
   return(
@@ -284,8 +284,13 @@ export default function PatientApp({user}){
       {/* Header */}
       <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"10px 16px",paddingTop:"calc(10px + env(safe-area-inset-top,0px))",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",gap:9}}>
-          <div style={{width:30,height:30,background:C.accentG,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <div style={{width:34,height:34,background:C.accentG,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:5}}>
+            <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
+              <line x1="4" y1="52" x2="76" y2="52" stroke="white" strokeWidth="4" strokeLinecap="round" opacity="0.4"/>
+              <path d="M4,52 Q20,20 36,52 Q52,84 68,52 Q84,20 100,52" fill="rgba(255,255,255,0.12)" stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M24,34 Q40,-8 56,34" fill="none" stroke="white" strokeWidth="4.5" strokeLinecap="round"/>
+              <circle cx="40" cy="-2" r="7" fill="white"/>
+            </svg>
           </div>
           <div>
             <p style={{fontFamily:"'Fraunces',serif",fontWeight:700,color:C.text,fontSize:14,lineHeight:1,margin:0}}>FisioApp</p>
@@ -349,7 +354,7 @@ export default function PatientApp({user}){
                 </div>
 
                 {pres.note&&(
-                  <div style={{background:"rgba(38,166,154,.06)",border:"1px solid rgba(38,166,154,.15)",borderRadius:10,padding:"10px 13px",marginBottom:14,display:"flex",gap:9}}>
+                  <div style={{background:"rgba(38,166,154,.06)",border:"1px solid #b2ebf2",borderRadius:10,padding:"10px 13px",marginBottom:14,display:"flex",gap:9}}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.accentL} strokeWidth="2" style={{flexShrink:0,marginTop:2}}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                     <p style={{color:C.text,fontSize:"0.82rem",margin:0,lineHeight:1.6}}>{pres.note}</p>
                   </div>
@@ -420,7 +425,7 @@ export default function PatientApp({user}){
         {tab==="progress"&&(
           <div className="fade" style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
             {/* Hero ring */}
-            <div style={{background:"linear-gradient(135deg,#0a1e1c,#0c1824)",border:"1px solid rgba(38,166,154,.15)",borderRadius:16,padding:"16px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+            <div style={{background:"linear-gradient(135deg,#e0f7fa,#e3f2fd)",border:"1px solid #b2ebf2",borderRadius:16,padding:"16px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
               <div>
                 <p style={{color:C.accentL,fontSize:"0.7rem",margin:"0 0 4px"}}>Hoy</p>
                 <p style={{color:C.text,fontSize:"2rem",fontWeight:800,margin:0,lineHeight:1,fontFamily:"'Fraunces',serif"}}>{done}<span style={{fontSize:"1.1rem",color:C.muted,fontWeight:400}}>/{totalEx}</span></p>
@@ -467,7 +472,7 @@ export default function PatientApp({user}){
                 {lpd.map(({d,n},i)=>{const isT=d.toDateString()===td;return(
                   <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
                     {n>0&&<span style={{fontSize:"0.6rem",color:isT?C.accent:C.muted}}>{n}</span>}
-                    <div style={{width:"100%",borderRadius:5,minHeight:3,height:`${n>0?Math.max((n/maxN)*42,6):3}px`,background:isT?C.accent:n>0?"rgba(38,166,154,.3)":C.border,transition:"height .5s"}}/>
+                    <div style={{width:"100%",borderRadius:5,minHeight:3,height:`${n>0?Math.max((n/maxN)*42,6):3}px`,background:isT?C.accent:n>0?"rgba(8,145,178,.25)":"#e8edf2",transition:"height .5s"}}/>
                     <span style={{fontSize:"0.6rem",color:isT?C.accent:C.dim,fontWeight:isT?700:400}}>{dS[d.getDay()]}</span>
                   </div>
                 );})}
@@ -478,7 +483,7 @@ export default function PatientApp({user}){
             <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 14px"}}>
               <p style={{color:C.muted,fontSize:"0.65rem",fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 10px"}}>30 días</p>
               <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                {Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));const n=logs.filter(l=>new Date(l.completed_at).toDateString()===d.toDateString()).length;const isT=d.toDateString()===td;return<div key={i} style={{width:24,height:24,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"0.6rem",fontWeight:600,outline:isT?`2px solid ${C.accent}`:"none",outlineOffset:1,background:n===0?C.border:n<=2?"rgba(38,166,154,.2)":n<=5?"rgba(38,166,154,.5)":"rgba(38,166,154,.85)",color:n===0?C.dim:C.text}}>{d.getDate()}</div>;})}
+                {Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));const n=logs.filter(l=>new Date(l.completed_at).toDateString()===d.toDateString()).length;const isT=d.toDateString()===td;return<div key={i} style={{width:24,height:24,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"0.6rem",fontWeight:600,outline:isT?`2px solid ${C.accent}`:"none",outlineOffset:1,background:n===0?"#e8edf2":n<=2?"rgba(38,166,154,.2)":n<=5?"rgba(38,166,154,.5)":"rgba(38,166,154,.85)",color:n===0?C.dim:C.text}}>{d.getDate()}</div>;})}
               </div>
             </div>
           </div>
@@ -496,7 +501,7 @@ export default function PatientApp({user}){
               ):msgs.map(m=>(
                 <div key={m.id} style={{display:"flex",justifyContent:m.sender==="patient"?"flex-end":"flex-start",alignItems:"flex-end",gap:7}}>
                   {m.sender!=="patient"&&<div style={{width:24,height:24,background:C.accentG,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.3"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>}
-                  <div style={{maxWidth:"76%",background:m.sender==="patient"?C.accentG:C.card,border:m.sender==="patient"?"none":`1px solid ${C.border}`,borderRadius:13,borderTopRightRadius:m.sender==="patient"?4:13,borderTopLeftRadius:m.sender==="patient"?13:4,borderBottomRightRadius:m.sender==="patient"?4:13,padding:"9px 13px",fontSize:"0.88rem",color:C.text,lineHeight:1.5}}>
+                  <div style={{maxWidth:"76%",background:m.sender==="patient"?C.accentG:"#f1f5f9",border:m.sender==="patient"?"none":`1px solid ${C.border}`,borderRadius:13,borderTopRightRadius:m.sender==="patient"?4:13,borderTopLeftRadius:m.sender==="patient"?13:4,borderBottomRightRadius:m.sender==="patient"?4:13,padding:"9px 13px",fontSize:"0.88rem",color:C.text,lineHeight:1.5}}>
                     {m.content}
                   </div>
                 </div>
@@ -504,7 +509,7 @@ export default function PatientApp({user}){
             </div>
             <div style={{display:"flex",gap:8,padding:"10px 0",borderTop:`1px solid ${C.border}`,flexShrink:0}}>
               <input value={reply} onChange={e=>setReply(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="Mensaje..."
-                style={{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 14px",fontSize:"0.88rem",color:C.text,outline:"none",WebkitAppearance:"none",minHeight:44}}/>
+                style={{flex:1,background:"#f8fafc",border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 14px",fontSize:"0.88rem",color:C.text,outline:"none",WebkitAppearance:"none",minHeight:44}}/>
               <button onClick={send} disabled={!reply.trim()} style={{width:44,height:44,background:reply.trim()?C.accentG:"rgba(255,255,255,.04)",border:"none",borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",cursor:reply.trim()?"pointer":"default",flexShrink:0,transition:"all .2s"}}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill={reply.trim()?"white":C.dim} style={{transform:"rotate(90deg)"}}><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
               </button>

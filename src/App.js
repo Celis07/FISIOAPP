@@ -5,19 +5,19 @@ import PatientApp from "./PatientApp";
 
 // ─── TOKENS ──────────────────────────────────────────────────────────────────
 const C = {
-  bg:      "#09090f",
-  surface: "#111118",
-  card:    "#18181f",
-  border:  "#242433",
-  accent:  "#26a69a",
-  accentL: "#4db6ac",
-  accentG: "linear-gradient(135deg,#26a69a,#00897b)",
-  text:    "#e2e8f4",
-  muted:   "#6b7390",
-  dim:     "#383d52",
-  success: "#4caf79",
-  warn:    "#e09c3a",
-  danger:  "#e05252",
+  bg:      "#f0f2f5",
+  surface: "#ffffff",
+  card:    "#f8f9fb",
+  border:  "#e2e6ed",
+  accent:  "#0891b2",
+  accentL: "#22d3ee",
+  accentG: "linear-gradient(135deg,#0891b2,#0e7490)",
+  text:    "#0f172a",
+  muted:   "#64748b",
+  dim:     "#94a3b8",
+  success: "#16a34a",
+  warn:    "#d97706",
+  danger:  "#dc2626",
 };
 
 const BLOCKS = ["Terapia","Calentamiento / Activación","Trabajo central"];
@@ -53,7 +53,7 @@ const I={
 };
 
 // ─── SMALL SHARED UI ─────────────────────────────────────────────────────────
-const inp = {background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"9px 13px",fontSize:13,color:C.text,outline:"none",width:"100%"};
+const inp = {background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"9px 13px",fontSize:13,color:C.text,outline:"none",width:"100%",boxSizing:"border-box"};
 const Btn = ({children,onClick,variant="ghost",disabled,style={}})=>{
   const base={border:"none",borderRadius:9,padding:"7px 14px",fontSize:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,transition:"opacity .15s",...style};
   const v={
@@ -163,8 +163,13 @@ function LoginView(){
     <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{width:"100%",maxWidth:360}}>
         <div style={{textAlign:"center",marginBottom:28}}>
-          <div style={{width:44,height:44,background:C.accentG,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",boxShadow:"0 0 28px rgba(38,166,154,.3)"}}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <div style={{width:54,height:54,background:C.accentG,borderRadius:16,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",boxShadow:"0 4px 20px rgba(8,145,178,.25)",padding:8}}>
+            <svg width="38" height="38" viewBox="0 0 80 80" fill="none">
+              <line x1="4" y1="52" x2="76" y2="52" stroke="white" strokeWidth="4" strokeLinecap="round" opacity="0.4"/>
+              <path d="M4,52 Q20,20 36,52 Q52,84 68,52 Q84,20 100,52" fill="rgba(255,255,255,0.12)" stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M24,34 Q40,-8 56,34" fill="none" stroke="white" strokeWidth="4.5" strokeLinecap="round"/>
+              <circle cx="40" cy="-2" r="7" fill="white"/>
+            </svg>
           </div>
           <h1 style={{fontFamily:"'Fraunces',serif",fontSize:"1.6rem",color:C.text,margin:0}}>FisioApp</h1>
         </div>
@@ -290,7 +295,7 @@ function DashboardView({user,onNavigate}){
       {/* Stat row */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
         {[
-          {n:d.patients,  l:"Pacientes",  sub:`${d.active} activos`,  c:C.accent,  tab:"patients"},
+          {n:d.patients,  l:"Usuarios",  sub:`${d.active} activos`,  c:C.accent,  tab:"patients"},
           {n:d.pending,   l:"Pendientes", sub:"por aprobar",          c:C.warn,    tab:"patients",filter:"pendiente"},
           {n:d.appts.length,l:"Citas",    sub:"próximas",             c:"#7c6af7", tab:"agenda"},
           {n:d.msgs,      l:"Mensajes",   sub:"sin leer",             c:"#4a9eff", tab:"messages"},
@@ -528,7 +533,10 @@ function PatientProfile({patient,user,onBack,onPrescribe,onApprove}){
           <div>
             <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:20,margin:"0 0 3px"}}>{patient.name}</h2>
             <p style={{color:C.muted,fontSize:13,margin:"0 0 6px"}}>{patient.condition||"Sin diagnóstico"}{patient.age?` · ${patient.age} años`:""}</p>
-            {patient.invite_status==="aprobado"?<Tag label="Acceso activo" color={C.success}/>:patient.invite_status==="pendiente"?<Tag label="Pendiente" color={C.warn}/>:<Tag label="Sin acceso" color={C.danger}/>}
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:4}}>
+              {patient.is_athlete&&<Tag label={patient.sport?`Atleta · ${patient.sport}`:"Atleta"} color="#7c6af7"/>}
+              {patient.invite_status==="aprobado"?<Tag label="Acceso activo" color={C.success}/>:patient.invite_status==="pendiente"?<Tag label="Pendiente" color={C.warn}/>:<Tag label="Sin acceso" color={C.danger}/>}
+            </div>
           </div>
         </div>
         <Menu items={[
@@ -674,7 +682,7 @@ function PatientsView({user,onPrescribe,onViewProfile,initialFilter,onClearFilte
   const [showForm,setForm]=useState(false);
   const [showInvite,setInvite]=useState(null);
   const [editPt,setEditPt]=useState(null);
-  const [form,setF]=useState({name:"",age:"",condition:"",email:""});
+  const [form,setF]=useState({name:"",age:"",condition:"",email:"",is_athlete:false,sport:""});
 
   useEffect(()=>{if(initialFilter)setSF(initialFilter);},[initialFilter]);
   useEffect(()=>{load();},[]);
@@ -684,13 +692,17 @@ function PatientsView({user,onPrescribe,onViewProfile,initialFilter,onClearFilte
   const addPatient=async()=>{
     if(!form.name.trim())return;
     const token=crypto.randomUUID();
-    const{data,error}=await supabase.from("patients").insert({...form,therapist_id:user.id,age:parseInt(form.age)||null,invite_token:token}).select().single();
+    const{data,error}=await supabase.from("patients").insert({
+      name:form.name,age:parseInt(form.age)||null,condition:form.condition,email:form.email,
+      is_athlete:form.is_athlete,sport:form.sport||null,
+      therapist_id:user.id,invite_token:token
+    }).select().single();
     setF({name:"",age:"",condition:"",email:""});setForm(false);load();
     if(data&&!error)setInvite(data);
   };
   const saveEdit=async()=>{
     if(!editPt||!form.name.trim())return;
-    await supabase.from("patients").update({name:form.name,age:parseInt(form.age)||null,condition:form.condition,email:form.email}).eq("id",editPt.id);
+    await supabase.from("patients").update({name:form.name,age:parseInt(form.age)||null,condition:form.condition,email:form.email,is_athlete:form.is_athlete,sport:form.sport||null}).eq("id",editPt.id);
     setEditPt(null);setF({name:"",age:"",condition:"",email:""});load();
   };
   const deletePt=async(p)=>{
@@ -720,6 +732,13 @@ function PatientsView({user,onPrescribe,onViewProfile,initialFilter,onClearFilte
               <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Correo</label><input value={form.email} onChange={e=>setF({...form,email:e.target.value})} type="email" style={inp}/></div>
             </div>
             <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Diagnóstico</label><input value={form.condition} onChange={e=>setF({...form,condition:e.target.value})} style={inp}/></div>
+            <div style={{gridColumn:"1/-1"}}>
+              <label style={{fontSize:12,color:C.muted,display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:4}}>
+                <input type="checkbox" checked={form.is_athlete} onChange={e=>setF({...form,is_athlete:e.target.checked})} style={{accentColor:C.accent,width:14,height:14}}/>
+                <span>Es atleta / deportista</span>
+              </label>
+              {form.is_athlete&&<input value={form.sport} onChange={e=>setF({...form,sport:e.target.value})} placeholder="Deporte (ej: fútbol, ciclismo...)" style={{...inp,marginTop:6}}/>}
+            </div>
           </div>
           <div style={{display:"flex",gap:10,marginTop:18}}>
             <Btn onClick={addPatient} variant="primary" style={{flex:1}}>Guardar y generar link</Btn>
@@ -738,6 +757,13 @@ function PatientsView({user,onPrescribe,onViewProfile,initialFilter,onClearFilte
               <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Correo</label><input value={form.email} onChange={e=>setF({...form,email:e.target.value})} type="email" style={inp}/></div>
             </div>
             <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Diagnóstico</label><input value={form.condition} onChange={e=>setF({...form,condition:e.target.value})} style={inp}/></div>
+            <div>
+              <label style={{fontSize:12,color:C.muted,display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:4}}>
+                <input type="checkbox" checked={form.is_athlete||false} onChange={e=>setF({...form,is_athlete:e.target.checked})} style={{accentColor:C.accent,width:14,height:14}}/>
+                <span>Es atleta / deportista</span>
+              </label>
+              {form.is_athlete&&<input value={form.sport||""} onChange={e=>setF({...form,sport:e.target.value})} placeholder="Deporte (ej: fútbol, ciclismo...)" style={{...inp,marginTop:4}}/>}
+            </div>
           </div>
           <div style={{display:"flex",gap:10,marginTop:18}}>
             <Btn onClick={saveEdit} variant="primary" style={{flex:1}}>Guardar</Btn>
@@ -748,8 +774,8 @@ function PatientsView({user,onPrescribe,onViewProfile,initialFilter,onClearFilte
 
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,gap:10}}>
         <div>
-          <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:20,margin:0}}>Pacientes</h2>
-          <p style={{color:C.muted,fontSize:12,margin:"2px 0 0"}}>{patients.length} en total</p>
+          <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:20,margin:0}}>Usuarios</h2>
+          <p style={{color:C.muted,fontSize:12,margin:"2px 0 0"}}>{patients.length} usuarios</p>
         </div>
         <Btn onClick={()=>setForm(true)} variant="primary">{I.plus} Nuevo</Btn>
       </div>
@@ -758,7 +784,7 @@ function PatientsView({user,onPrescribe,onViewProfile,initialFilter,onClearFilte
       <div style={{display:"flex",gap:8,marginBottom:14}}>
         <div style={{flex:1,position:"relative"}}>
           <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",color:C.dim}}>{I.search}</span>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por nombre o diagnóstico..." style={{...inp,paddingLeft:34}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar por nombre, diagnóstico o deporte..." style={{...inp,paddingLeft:34}}/>
         </div>
         {statusFilter&&<Btn onClick={()=>{setSF(null);if(onClearFilter)onClearFilter();}} variant="ghost">{statusFilter==="pendiente"?"Pendientes":"Filtro"} ✕</Btn>}
       </div>
@@ -777,8 +803,9 @@ function PatientsView({user,onPrescribe,onViewProfile,initialFilter,onClearFilte
               <Avatar name={p.name} size={36}/>
               <div style={{flex:1,minWidth:0}}>
                 <p style={{color:C.text,fontWeight:600,fontSize:14,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</p>
-                <p style={{color:C.muted,fontSize:12,margin:"2px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.condition||"Sin diagnóstico"}{p.age?` · ${p.age} años`:""}</p>
+                <p style={{color:C.muted,fontSize:12,margin:"2px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.condition||"Sin diagnóstico"}{p.age?` · ${p.age} años`:""}{p.sport?` · ${p.sport}`:""}</p>
               </div>
+              {p.is_athlete&&<Tag label="Atleta" color="#7c6af7"/>}
               {p.invite_status==="aprobado"&&<Tag label="Activo" color={C.success}/>}
               {p.invite_status==="pendiente"&&<Tag label="Pendiente" color={C.warn}/>}
               {!p.invite_status&&<Tag label="Sin acceso" color={C.dim}/>}
@@ -786,7 +813,7 @@ function PatientsView({user,onPrescribe,onViewProfile,initialFilter,onClearFilte
                 <Menu items={[
                   {label:"Ver perfil",      action:()=>onViewProfile(p)},
                   {label:"Prescribir plan", icon:I.plus,  action:()=>onPrescribe(p)},
-                  {label:"Editar datos",    icon:I.edit,  action:()=>{setEditPt(p);setF({name:p.name,age:p.age||"",condition:p.condition||"",email:p.email||""});}},
+                  {label:"Editar datos",    icon:I.edit,  action:()=>{setEditPt(p);setF({name:p.name,age:p.age||"",condition:p.condition||"",email:p.email||"",is_athlete:p.is_athlete||false,sport:p.sport||""});}},
                   {label:"Copiar link",     icon:I.link,  action:()=>setInvite(p)},
                   p.invite_status!=="aprobado"&&{label:"Habilitar acceso", action:()=>approvePatient(p.id)},
                   "---",
@@ -1244,9 +1271,13 @@ function MessagesView({user}){
   useEffect(()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});},[messages]);
 
   const loadThreads=async()=>{
-    const{data}=await supabase.from("messages").select("*").order("created_at",{ascending:false});
-    const map={};(data||[]).forEach(m=>{if(!map[m.patient_name])map[m.patient_name]={name:m.patient_name,last:m.content,unread:0,ts:m.created_at};if(m.unread&&m.sender==="patient")map[m.patient_name].unread++;});
-    setThreads(Object.values(map));setLoad(false);
+    const{data}=await supabase.from("messages").select("*")
+      .eq("therapist_id",user.id).order("created_at",{ascending:false});
+    const map={};(data||[]).forEach(m=>{
+      if(!map[m.patient_name])map[m.patient_name]={name:m.patient_name,last:m.content,unread:0,ts:m.created_at};
+      if(m.unread&&m.sender==="patient")map[m.patient_name].unread++;
+    });
+    setThreads(Object.values(map).sort((a,b)=>b.ts>a.ts?1:-1));setLoad(false);
   };
   const loadMessages=async(name)=>{
     await supabase.from("messages").update({unread:false}).eq("patient_name",name).eq("sender","patient");
@@ -1392,6 +1423,90 @@ function CustomExercisesView({user}){
   );
 }
 
+
+// ─── AVAILABILITY VIEW ────────────────────────────────────────────────────────
+function AvailabilityView({user}){
+  const [slots,setSlots]=useState([]);
+  const [loading,setLoad]=useState(true);
+  const [form,setF]=useState({day_of_week:1,start_time:"08:00",end_time:"18:00"});
+  const [saving,setSave]=useState(false);
+  const DAYS=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+
+  useEffect(()=>{load();},[]);
+  const load=async()=>{
+    const{data}=await supabase.from("availability").select("*").eq("therapist_id",user.id).order("day_of_week").order("start_time");
+    setSlots(data||[]);setLoad(false);
+  };
+  const save=async()=>{
+    setSave(true);
+    await supabase.from("availability").insert({...form,therapist_id:user.id,day_of_week:parseInt(form.day_of_week)});
+    setSave(false);load();
+  };
+  const toggle=async(id,active)=>{await supabase.from("availability").update({active:!active}).eq("id",id);load();};
+  const del=async(id)=>{if(!window.confirm("¿Eliminar este horario?"))return;await supabase.from("availability").delete().eq("id",id);load();};
+
+  const byDay={};DAYS.forEach((_,i)=>{byDay[i]=slots.filter(s=>s.day_of_week===i);});
+
+  return(
+    <div style={{maxWidth:700}}>
+      <div style={{marginBottom:20}}>
+        <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:20,margin:"0 0 4px"}}>Disponibilidad</h2>
+        <p style={{color:C.muted,fontSize:13,margin:0}}>Define tus horarios de atención. Los usuarios podrán verlos al agendar.</p>
+      </div>
+
+      {/* Add slot form */}
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:16,marginBottom:20}}>
+        <p style={{color:C.muted,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 12px"}}>Agregar horario</p>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",gap:10,alignItems:"end"}}>
+          <div>
+            <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Día</label>
+            <select value={form.day_of_week} onChange={e=>setF({...form,day_of_week:e.target.value})} style={{...inp}}>
+              {DAYS.map((d,i)=><option key={i} value={i}>{d}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Desde</label>
+            <input type="time" value={form.start_time} onChange={e=>setF({...form,start_time:e.target.value})} style={{...inp}}/>
+          </div>
+          <div>
+            <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Hasta</label>
+            <input type="time" value={form.end_time} onChange={e=>setF({...form,end_time:e.target.value})} style={{...inp}}/>
+          </div>
+          <Btn onClick={save} disabled={saving} variant="primary" style={{height:38}}>{saving?"...":"Agregar"}</Btn>
+        </div>
+      </div>
+
+      {/* Slots by day */}
+      {loading?<div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:32}}><div style={{width:22,height:22,border:`2px solid ${C.accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin .8s linear infinite"}}/></div>:(
+        <div style={{display:"grid",gap:8}}>
+          {DAYS.map((day,i)=>{
+            const daySlots=byDay[i]||[];
+            if(!daySlots.length)return null;
+            return(
+              <div key={i} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
+                <div style={{background:C.card,padding:"8px 14px",borderBottom:`1px solid ${C.border}`}}>
+                  <span style={{color:C.text,fontWeight:600,fontSize:13}}>{day}</span>
+                </div>
+                {daySlots.map(s=>(
+                  <div key={s.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderBottom:`1px solid ${C.border}`,opacity:s.active?1:.5}}>
+                    <span style={{color:s.active?C.accent:C.muted,fontWeight:700,fontSize:13,minWidth:100}}>{s.start_time} – {s.end_time}</span>
+                    <div style={{flex:1}}/>
+                    <button onClick={()=>toggle(s.id,s.active)} style={{background:s.active?"rgba(76,175,121,.12)":"rgba(107,115,144,.1)",border:`1px solid ${s.active?"rgba(76,175,121,.3)":C.border}`,borderRadius:8,padding:"4px 10px",color:s.active?C.success:C.muted,fontSize:11,fontWeight:600,cursor:"pointer"}}>
+                      {s.active?"Activo":"Inactivo"}
+                    </button>
+                    <button onClick={()=>del(s.id)} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",display:"flex",padding:4}}>{I.trash}</button>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+          {slots.length===0&&<p style={{color:C.muted,fontSize:13,textAlign:"center",padding:"24px 0"}}>Sin horarios definidos aún</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── THERAPIST APP ────────────────────────────────────────────────────────────
 function TherapistApp({user}){
   const [tab,setTab]=useState("dashboard");
@@ -1404,19 +1519,25 @@ function TherapistApp({user}){
   const viewProfile=p=>{setProfilePt(p);setPrescribePt(null);};
 
   const NAV=[
-    {id:"dashboard",icon:I.dash,  label:"Dashboard"},
-    {id:"patients", icon:I.pts,   label:"Pacientes"},
-    {id:"agenda",   icon:I.cal,   label:"Agenda"},
-    {id:"messages", icon:I.msg,   label:"Mensajes"},
+    {id:"dashboard",   icon:I.dash,  label:"Dashboard"},
+    {id:"patients",    icon:I.pts,   label:"Usuarios"},
+    {id:"agenda",      icon:I.cal,   label:"Agenda"},
+    {id:"messages",    icon:I.msg,   label:"Mensajes"},
+    {id:"availability",icon:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>, label:"Horarios"},
   ];
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,display:"flex"}}>
       {/* Sidebar — icons only */}
-      <aside style={{width:52,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:20,paddingTop:"env(safe-area-inset-top,0px)"}}>
+      <aside style={{width:52,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:20,paddingTop:"env(safe-area-inset-top,0px)",boxShadow:"2px 0 8px rgba(0,0,0,0.06)"}}>
         <div style={{padding:"14px 0 12px",display:"flex",justifyContent:"center",borderBottom:`1px solid ${C.border}`}}>
-          <div style={{width:30,height:30,background:C.accentG,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <div style={{width:34,height:34,background:C.accentG,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",padding:5}}>
+            <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
+              <line x1="4" y1="52" x2="76" y2="52" stroke="white" strokeWidth="4" strokeLinecap="round" opacity="0.4"/>
+              <path d="M4,52 Q20,20 36,52 Q52,84 68,52 Q84,20 100,52" fill="rgba(255,255,255,0.12)" stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M24,34 Q40,-8 56,34" fill="none" stroke="white" strokeWidth="4.5" strokeLinecap="round"/>
+              <circle cx="40" cy="-2" r="7" fill="white"/>
+            </svg>
           </div>
         </div>
         <nav style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"8px 0",gap:2}}>
@@ -1436,13 +1557,14 @@ function TherapistApp({user}){
       </aside>
 
       {/* Main */}
-      <main style={{flex:1,marginLeft:52,padding:"28px 28px",minHeight:"100vh",paddingTop:"calc(28px + env(safe-area-inset-top,0px))",overflowX:"hidden",overflowY:"auto"}}>
+      <main style={{flex:1,marginLeft:52,padding:"28px 28px",minHeight:"100vh",paddingTop:"calc(28px + env(safe-area-inset-top,0px))",overflowX:"hidden",overflowY:"auto",background:C.bg}}>
         {tab==="dashboard"&&<DashboardView user={user} onNavigate={(t,p,f)=>{setTab(t);if(p)setProfilePt(p);if(f)setPF(f);}}/>}
         {tab==="patients"&&!prescribePt&&!profilePt&&<PatientsView user={user} onPrescribe={prescribe} onViewProfile={viewProfile} initialFilter={pendingFilter} onClearFilter={()=>setPF(null)}/>}
         {tab==="patients"&&prescribePt&&<PrescribeView user={user} patient={prescribePt} onBack={goBack}/>}
         {tab==="patients"&&profilePt&&<PatientProfile patient={profilePt} user={user} onBack={goBack} onPrescribe={prescribe} onApprove={async(id)=>{await supabase.from("patients").update({invite_status:"aprobado"}).eq("id",id);setProfilePt(prev=>({...prev,invite_status:"aprobado"}));}}/>}
         {tab==="agenda"&&<AgendaView user={user}/>}
         {tab==="messages"&&<MessagesView user={user}/>}
+        {tab==="availability"&&<AvailabilityView user={user}/>}
       </main>
     </div>
   );
@@ -1498,7 +1620,7 @@ function InviteHandler({token,user}){
     <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:16,padding:"28px 24px",maxWidth:360,width:"100%"}}>
         <div style={{width:40,height:40,background:C.accentG,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <svg width="28" height="28" viewBox="0 0 80 80" fill="none"><line x1="4" y1="52" x2="76" y2="52" stroke="white" strokeWidth="4" strokeLinecap="round" opacity="0.4"/><path d="M4,52 Q20,20 36,52 Q52,84 68,52 Q84,20 100,52" fill="rgba(255,255,255,0.12)" stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/><path d="M24,34 Q40,-8 56,34" fill="none" stroke="white" strokeWidth="4.5" strokeLinecap="round"/><circle cx="40" cy="-2" r="7" fill="white"/></svg>
         </div>
         {children}
       </div>
