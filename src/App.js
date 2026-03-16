@@ -55,12 +55,12 @@ const I={
 // ─── SMALL SHARED UI ─────────────────────────────────────────────────────────
 const inp = {background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"9px 13px",fontSize:13,color:C.text,outline:"none",width:"100%",boxSizing:"border-box"};
 const Btn = ({children,onClick,variant="ghost",disabled,style={}})=>{
-  const base={border:"none",borderRadius:9,padding:"7px 14px",fontSize:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,transition:"opacity .15s",...style};
+  const base={border:"none",borderRadius:9,padding:"7px 14px",fontSize:13,fontWeight:600,cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,transition:"all .15s",display:"inline-flex",alignItems:"center",gap:6,whiteSpace:"nowrap",...style};
   const v={
-    primary:{...base,background:C.accentG,color:"#fff"},
-    danger: {...base,background:"rgba(224,82,82,.12)",border:`1px solid rgba(224,82,82,.25)`,color:C.danger},
+    primary:{...base,background:C.accentG,color:"#fff",boxShadow:"0 1px 4px rgba(8,145,178,.2)"},
+    danger: {...base,background:"rgba(220,38,38,.08)",border:`1px solid rgba(220,38,38,.2)`,color:C.danger},
     ghost:  {...base,background:"transparent",border:`1px solid ${C.border}`,color:C.muted},
-    subtle: {...base,background:C.card,border:`1px solid ${C.border}`,color:C.muted},
+    subtle: {...base,background:C.card,border:`1px solid ${C.border}`,color:C.text},
   };
   return <button onClick={onClick} disabled={disabled} style={v[variant]||v.ghost}>{children}</button>;
 };
@@ -80,7 +80,7 @@ function Menu({items}){
         {I.dots}
       </button>
       {open&&(
-        <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:4,zIndex:50,minWidth:160,boxShadow:"0 8px 32px rgba(0,0,0,.6)"}}>
+        <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:4,zIndex:50,minWidth:160,boxShadow:"0 4px 20px rgba(0,0,0,.12)",maxWidth:"calc(100vw - 32px)"}}>
           {items.map((item,i)=>item==="---"?(
             <div key={i} style={{height:1,background:C.border,margin:"4px 0"}}/>
           ):(
@@ -113,7 +113,7 @@ function Modal({title,onClose,children,maxWidth=480}){
 
 // Tag / badge
 function Tag({label,color}){
-  return<span style={{fontSize:11,fontWeight:600,color,background:`${color}18`,border:`1px solid ${color}30`,borderRadius:6,padding:"2px 8px",whiteSpace:"nowrap"}}>{label}</span>;
+  return<span style={{fontSize:11,fontWeight:600,color,background:`${color}15`,border:`1px solid ${color}35`,borderRadius:6,padding:"2px 8px",whiteSpace:"nowrap",display:"inline-block"}}>{label}</span>;
 }
 
 // ─── PDF EXPORT ───────────────────────────────────────────────────────────────
@@ -293,7 +293,7 @@ function DashboardView({user,onNavigate}){
       )}
 
       {/* Stat row */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10,marginBottom:20}}>
         {[
           {n:d.patients,  l:"Usuarios",  sub:`${d.active} activos`,  c:C.accent,  tab:"patients"},
           {n:d.pending,   l:"Pendientes", sub:"por aprobar",          c:C.warn,    tab:"patients",filter:"pendiente"},
@@ -495,6 +495,8 @@ function PatientProfile({patient,user,onBack,onPrescribe,onApprove}){
   const [loading,setLoad]=useState(true);
   const [activeTab,setTab]=useState("plans");
   const [activePres,setActivePres]=useState(null);
+  // Auto-open current plan
+  useEffect(()=>{ if(prescriptions.length>0) setActivePres(prescriptions[0].id); },[prescriptions]);
   const [showInvite,setInvite]=useState(false);
   const [editPres,setEditPres]=useState(null);
 
@@ -550,7 +552,7 @@ function PatientProfile({patient,user,onBack,onPrescribe,onApprove}){
       </div>
 
       {/* Stats */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:18}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(80px,1fr))",gap:8,marginBottom:18}}>
         {[{v:prescriptions.length,l:"Planes",c:C.accent},{v:streak,l:"Racha",c:C.warn},{v:logs.length,l:"Completados",c:C.success}].map((s,i)=>(
           <div key={i} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 8px",textAlign:"center"}}>
             <p style={{color:s.c,fontSize:22,fontWeight:700,margin:0,fontFamily:"'Fraunces',serif"}}>{s.v}</p>
@@ -584,20 +586,23 @@ function PatientProfile({patient,user,onBack,onPrescribe,onApprove}){
                 <div key={pres.id} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px"}}>
                     <button onClick={()=>setActivePres(activePres===pres.id?null:pres.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-start",background:"none",border:"none",cursor:"pointer",textAlign:"left",gap:3}}>
-                      <span style={{color:C.text,fontWeight:600,fontSize:13}}>{i===0?"Plan actual":`Plan #${prescriptions.length-i}`}</span>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{color:C.text,fontWeight:600,fontSize:13}}>{i===0?"Plan actual":`Plan #${prescriptions.length-i}`}</span>
+                        {i===0&&<span style={{fontSize:10,color:C.accent,fontWeight:600}}>{activePres===pres.id?"▲":"▼"}</span>}
+                      </div>
                       <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                         <span style={{color:C.muted,fontSize:11}}>{new Date(pres.created_at).toLocaleDateString("es-CO",{day:"numeric",month:"short",year:"numeric"})} · {pres.exercises?.length||0} ejercicios</span>
                         {dCol&&<Tag label={dl<0?"Vencido":dl===0?"Vence hoy":`${dl}d`} color={dCol}/>}
                       </div>
                     </button>
-                    <Menu items={[
+                    {activePres===pres.id&&<Menu items={[
                       {label:"Editar",    icon:I.edit,  action:()=>setEditPres(pres)},
                       {label:"Duplicar",  action:async()=>{const dur=pres.duration_days||30;const sd=localDateStr(new Date());const ed=localDateStr(new Date(Date.now()+dur*864e5));await supabase.from("prescriptions").insert({patient_id:patient.id,therapist_id:user.id,exercises:pres.exercises,note:pres.note||"",duration_days:dur,start_date:sd,end_date:ed});fetchPrescriptions();}},
                       {label:"Renovar",   action:async()=>{if(!window.confirm("¿Renovar por el mismo período?"))return;const dur=pres.duration_days||30;const sd=localDateStr(new Date());const ed=localDateStr(new Date(Date.now()+dur*864e5));await supabase.from("prescriptions").update({start_date:sd,end_date:ed}).eq("id",pres.id);fetchPrescriptions();}},
                       {label:"Exportar PDF", icon:I.pdf, action:()=>exportPDF(patient,pres)},
                       "---",
                       {label:"Eliminar",  icon:I.trash, danger:true, action:()=>deletePrescription(pres.id)},
-                    ]}/>
+                    ]}/>}
                   </div>
                   {activePres===pres.id&&(
                     <div style={{borderTop:`1px solid ${C.border}`,padding:"12px 14px"}}>
@@ -968,7 +973,7 @@ function PrescribeView({user,patient,onBack,existingPrescription}){
             <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Nombre *</label><input value={newEx.name} onChange={e=>setNewEx({...newEx,name:e.target.value})} placeholder="Ej: Sentadilla isométrica" style={inp}/></div>
             <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Descripción</label><textarea value={newEx.description} onChange={e=>setNewEx({...newEx,description:e.target.value})} rows={3} style={{...inp,resize:"none",lineHeight:1.5}}/></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-              <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Categoría</label><select value={newEx.category} onChange={e=>setNewEx({...newEx,category:e.target.value})} style={{...inp,padding:"8px 10px"}}>{["Rehabilitacion","Core / Abdomen","Gluteos / Cadera","Pierna / Rodilla","Hombro / Escapular","Pecho / Empuje","Espalda / Traccion","Tobillo / Pie","Cervical / Cuello","Calentamiento","Full Body","Otro"].map(c=><option key={c}>{c}</option>)}</select></div>
+              <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Categoría</label><select value={newEx.category} onChange={e=>setNewEx({...newEx,category:e.target.value})} style={{...inp,padding:"8px 10px",color:C.text}}>{["Rehabilitacion","Core / Abdomen","Gluteos / Cadera","Pierna / Rodilla","Hombro / Escapular","Pecho / Empuje","Espalda / Traccion","Tobillo / Pie","Cervical / Cuello","Calentamiento","Full Body","Otro"].map(c=><option key={c}>{c}</option>)}</select></div>
               <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Series</label><input type="number" value={newEx.default_sets} min="1" onChange={e=>setNewEx({...newEx,default_sets:e.target.value})} style={{...inp,textAlign:"center"}}/></div>
               <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Reps</label><input value={newEx.default_reps} onChange={e=>setNewEx({...newEx,default_reps:e.target.value})} style={{...inp,textAlign:"center"}}/></div>
             </div>
@@ -985,11 +990,11 @@ function PrescribeView({user,patient,onBack,existingPrescription}){
         </Modal>
       )}
 
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-        <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,color:C.muted,background:"none",border:"none",cursor:"pointer",fontSize:13}}>{I.back} Volver</button>
-        <div style={{display:"flex",gap:8}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,gap:8,flexWrap:"wrap"}}>
+        <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,color:C.muted,background:"none",border:"none",cursor:"pointer",fontSize:13,flexShrink:0}}>{I.back} Volver</button>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <Btn onClick={()=>setShowTemplates(true)} variant="ghost" style={{fontSize:12}}>Plantillas</Btn>
-          {total>0&&<Btn onClick={()=>setShowSaveTemplate(true)} variant="subtle" style={{fontSize:12}}>Guardar como plantilla</Btn>}
+          {total>0&&<Btn onClick={()=>setShowSaveTemplate(true)} variant="subtle" style={{fontSize:12}}>Guardar plantilla</Btn>}
         </div>
       </div>
 
@@ -1374,7 +1379,7 @@ function CustomExercisesView({user}){
             <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Nombre *</label><input value={form.name} onChange={e=>setF({...form,name:e.target.value})} style={inp}/></div>
             <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:4}}>Descripción</label><textarea value={form.description} onChange={e=>setF({...form,description:e.target.value})} rows={3} style={{...inp,resize:"none",lineHeight:1.5}}/></div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-              <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Categoría</label><select value={form.category} onChange={e=>setF({...form,category:e.target.value})} style={{...inp,padding:"8px 10px"}}>{["Rehabilitacion","Core / Abdomen","Gluteos / Cadera","Pierna / Rodilla","Hombro / Escapular","Pecho / Empuje","Espalda / Traccion","Tobillo / Pie","Cervical / Cuello","Calentamiento","Full Body","Otro"].map(c=><option key={c}>{c}</option>)}</select></div>
+              <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Categoría</label><select value={form.category} onChange={e=>setF({...form,category:e.target.value})} style={{...inp,padding:"8px 10px",color:C.text}}>{["Rehabilitacion","Core / Abdomen","Gluteos / Cadera","Pierna / Rodilla","Hombro / Escapular","Pecho / Empuje","Espalda / Traccion","Tobillo / Pie","Cervical / Cuello","Calentamiento","Full Body","Otro"].map(c=><option key={c}>{c}</option>)}</select></div>
               <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Series</label><input type="number" value={form.default_sets} min="1" onChange={e=>setF({...form,default_sets:e.target.value})} style={{...inp,textAlign:"center"}}/></div>
               <div><label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Reps</label><input value={form.default_reps} onChange={e=>setF({...form,default_reps:e.target.value})} style={{...inp,textAlign:"center"}}/></div>
             </div>
@@ -1457,7 +1462,7 @@ function AvailabilityView({user}){
       {/* Add slot form */}
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:16,marginBottom:20}}>
         <p style={{color:C.muted,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 12px"}}>Agregar horario</p>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr auto",gap:10,alignItems:"end"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,alignItems:"end"}}>
           <div>
             <label style={{fontSize:11,color:C.muted,display:"block",marginBottom:4}}>Día</label>
             <select value={form.day_of_week} onChange={e=>setF({...form,day_of_week:e.target.value})} style={{...inp}}>
@@ -1557,7 +1562,8 @@ function TherapistApp({user}){
       </aside>
 
       {/* Main */}
-      <main style={{flex:1,marginLeft:52,padding:"28px 28px",minHeight:"100vh",paddingTop:"calc(28px + env(safe-area-inset-top,0px))",overflowX:"hidden",overflowY:"auto",background:C.bg}}>
+      <main style={{flex:1,marginLeft:52,padding:"24px",paddingTop:"calc(24px + env(safe-area-inset-top,0px))",minHeight:"100vh",overflowX:"hidden",overflowY:"auto",background:C.bg}}>
+        <div style={{maxWidth:980,margin:"0 auto"}}>
         {tab==="dashboard"&&<DashboardView user={user} onNavigate={(t,p,f)=>{setTab(t);if(p)setProfilePt(p);if(f)setPF(f);}}/>}
         {tab==="patients"&&!prescribePt&&!profilePt&&<PatientsView user={user} onPrescribe={prescribe} onViewProfile={viewProfile} initialFilter={pendingFilter} onClearFilter={()=>setPF(null)}/>}
         {tab==="patients"&&prescribePt&&<PrescribeView user={user} patient={prescribePt} onBack={goBack}/>}
@@ -1565,6 +1571,7 @@ function TherapistApp({user}){
         {tab==="agenda"&&<AgendaView user={user}/>}
         {tab==="messages"&&<MessagesView user={user}/>}
         {tab==="availability"&&<AvailabilityView user={user}/>}
+        </div>
       </main>
     </div>
   );

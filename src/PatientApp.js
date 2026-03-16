@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabase";
 
+function localDateStr(d){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0");return`${y}-${m}-${dd}`;}
+
 const C = {
   bg:"#f0f4f8", surface:"#ffffff", card:"#f8f9fb", border:"#e2e6ed",
   accent:"#0891b2", accentL:"#22d3ee", accentG:"linear-gradient(135deg,#0891b2,#0e7490)",
@@ -145,6 +147,197 @@ function getMotivation(done, total){
 }
 
 // ── MAIN ─────────────────────────────────────────────────────────────────────
+
+// ─── BOOKING VIEW ─────────────────────────────────────────────────────────────
+function BookingView({patient}){
+  const [slots,setSlots]       = useState([]);
+  const [appointments,setAppts]= useState([]);
+  const [loading,setLoad]      = useState(true);
+  const [selectedDate,setDate] = useState(null);
+  const [booking,setBooking]   = useState(null); // {date,time}
+  const [saving,setSave]       = useState(false);
+  const [success,setSuccess]   = useState(false);
+
+  const DAYS=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+  const DAYS_SHORT=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+
+  useEffect(()=>{ loadData(); },[]);
+
+  const loadData=async()=>{
+    const[{data:av},{data:ap}]=await Promise.all([
+      supabase.from("availability").select("*").eq("active",true).order("day_of_week").order("start_time"),
+      supabase.from("appointments").select("*").gte("date",localDateStr(new Date())),
+    ]);
+    setSlots(av||[]);setAppts(ap||[]);setLoad(false);
+  };
+
+  // Build next 14 days with available slots
+  const days=Array.from({length:14},(_,i)=>{
+    const d=new Date();d.setDate(d.getDate()+i+1);
+    return d;
+  }).filter(d=>{
+    const dow=d.getDay();
+    return slots.some(s=>s.day_of_week===dow);
+  });
+
+  // Get time slots for a given date
+  const getSlotsForDate=(date)=>{
+    const dow=date.getDay();
+    const ds=localDateStr(date);
+    const daySlots=slots.filter(s=>s.day_of_week===dow);
+    const times=[];
+    daySlots.forEach(s=>{
+      // Generate hourly slots within range
+      const startH=parseInt(s.start_time.split(":")[0]);
+      const endH=parseInt(s.end_time.split(":")[0]);
+      for(let h=startH;h<endH;h++){
+        const t=`${String(h).padStart(2,"0")}:00`;
+        const occupied=appointments.filter(a=>a.date===ds&&a.time===t).length;
+        if(occupied<2) times.push({time:t,occupied,max:2}); // max 2 per slot
+      }
+    });
+    return times.sort((a,b)=>a.time>b.time?1:-1);
+  };
+
+  const book=async()=>{
+    if(!booking||!patient)return;
+    setSave(true);
+    await supabase.from("appointments").insert({
+      therapist_id:patient.therapist_id,
+      patient_name:patient.name,
+      date:booking.date,
+      time:booking.time,
+      type:"Presencial",
+      status:"pendiente"
+    });
+    setSave(false);setSuccess(true);setBooking(null);
+    loadData();
+  };
+
+  if(loading)return(
+    <div style={{display:"flex",justifyContent:"center",padding:48}}>
+      <div style={{width:22,height:22,border:`2px solid ${C.accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
+    </div>
+  );
+
+  if(success)return(
+    <div style={{textAlign:"center",padding:"52px 0",display:"flex",flexDirection:"column",alignItems:"center",gap:12}}>
+      <div style={{width:56,height:56,background:"rgba(22,163,74,.1)",border:"1px solid rgba(22,163,74,.25)",borderRadius:18,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={C.success} strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <p style={{color:C.text,fontWeight:700,fontSize:16,margin:0}}>¡Reserva enviada!</p>
+      <p style={{color:C.muted,fontSize:13,lineHeight:1.6}}>Tu fisioterapeuta confirmará la cita pronto.</p>
+      <button onClick={()=>setSuccess(false)} style={{background:C.accentG,border:"none",borderRadius:10,padding:"9px 22px",color:"#fff",fontWeight:700,cursor:"pointer",fontSize:13}}>Ver más horarios</button>
+    </div>
+  );
+
+  // My upcoming appointments
+  const myAppts=appointments.filter(a=>a.patient_name===patient.name).sort((a,b)=>a.date>b.date?1:-1);
+
+  return(
+    <div style={{padding:"14px 16px"}}>
+      {/* Confirm booking modal */}
+      {booking&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:100,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:16}}>
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:"18px 18px 18px 18px",padding:"22px 20px",width:"100%",maxWidth:420,paddingBottom:"calc(22px + env(safe-area-inset-bottom,0px))"}}>
+            <h3 style={{color:C.text,fontWeight:700,fontSize:16,margin:"0 0 6px"}}>Confirmar reserva</h3>
+            <p style={{color:C.muted,fontSize:13,margin:"0 0 18px",lineHeight:1.6}}>
+              {new Date(booking.date+"T12:00").toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long"})} a las <strong style={{color:C.text}}>{booking.time}</strong>
+            </p>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={book} disabled={saving} style={{flex:1,background:C.accentG,border:"none",borderRadius:10,padding:11,color:"#fff",fontWeight:700,cursor:"pointer",fontSize:14}}>
+                {saving?"Reservando...":"Confirmar"}
+              </button>
+              <button onClick={()=>setBooking(null)} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 16px",color:C.muted,cursor:"pointer",fontSize:13}}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:"1.15rem",margin:"0 0 4px",fontWeight:700}}>Reservar sesión</h2>
+      <p style={{color:C.muted,fontSize:"0.8rem",margin:"0 0 16px"}}>Selecciona un día y hora disponible</p>
+
+      {/* My upcoming bookings */}
+      {myAppts.length>0&&(
+        <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",marginBottom:16}}>
+          <p style={{color:C.muted,fontSize:"0.7rem",fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 10px"}}>Mis próximas citas</p>
+          {myAppts.slice(0,3).map(a=>(
+            <div key={a.id} style={{display:"flex",gap:10,alignItems:"center",marginBottom:8}}>
+              <div style={{background:"rgba(8,145,178,.08)",border:"1px solid rgba(8,145,178,.15)",borderRadius:8,padding:"3px 8px",textAlign:"center",minWidth:52,flexShrink:0}}>
+                <p style={{color:C.accent,fontWeight:700,fontSize:"0.8rem",margin:0}}>{a.time}</p>
+                <p style={{color:C.muted,fontSize:"0.65rem",margin:0}}>{a.date?.slice(5)}</p>
+              </div>
+              <div>
+                <p style={{color:C.text,fontSize:"0.85rem",fontWeight:600,margin:0}}>{new Date(a.date+"T12:00").toLocaleDateString("es-CO",{weekday:"short",day:"numeric",month:"short"})}</p>
+                <p style={{color:a.status==="confirmada"?C.success:C.warn,fontSize:"0.7rem",margin:"1px 0 0",fontWeight:600,textTransform:"capitalize"}}>{a.status}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {days.length===0?(
+        <div style={{textAlign:"center",padding:"40px 0"}}>
+          <p style={{color:C.text,fontWeight:600,fontSize:15,margin:"0 0 6px"}}>Sin horarios disponibles</p>
+          <p style={{color:C.muted,fontSize:13}}>Tu fisioterapeuta aún no ha publicado horarios</p>
+        </div>
+      ):(
+        <>
+          {/* Date selector */}
+          <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:8,marginBottom:14,WebkitOverflowScrolling:"touch"}}>
+            {days.map((d,i)=>{
+              const ds=localDateStr(d);
+              const isSelected=selectedDate===ds;
+              const hasSlots=getSlotsForDate(d).length>0;
+              return(
+                <button key={i} onClick={()=>setDate(ds)}
+                  style={{flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"8px 12px",borderRadius:12,border:`1px solid ${isSelected?C.accent:C.border}`,background:isSelected?C.accentG:"transparent",cursor:"pointer",opacity:hasSlots?1:.4,minWidth:52}}>
+                  <span style={{fontSize:"0.65rem",color:isSelected?"rgba(255,255,255,.8)":C.muted,fontWeight:500}}>{DAYS_SHORT[d.getDay()]}</span>
+                  <span style={{fontSize:"1rem",fontWeight:700,color:isSelected?"#fff":C.text,lineHeight:1}}>{d.getDate()}</span>
+                  {hasSlots&&!isSelected&&<div style={{width:4,height:4,borderRadius:"50%",background:C.accent}}/>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Time slots for selected date */}
+          {selectedDate&&(()=>{
+            const selDate=new Date(selectedDate+"T12:00");
+            const times=getSlotsForDate(selDate);
+            return(
+              <div>
+                <p style={{color:C.muted,fontSize:"0.7rem",fontWeight:700,textTransform:"uppercase",letterSpacing:.8,margin:"0 0 10px"}}>
+                  {selDate.toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long"})}
+                </p>
+                {times.length===0?(
+                  <p style={{color:C.muted,fontSize:13,textAlign:"center",padding:"20px 0"}}>Sin horarios disponibles este día</p>
+                ):(
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))",gap:8}}>
+                    {times.map(({time,occupied,max})=>{
+                      const pct=occupied/max;
+                      const isAlmost=pct>0;
+                      return(
+                        <button key={time} onClick={()=>setBooking({date:selectedDate,time})}
+                          style={{padding:"10px 8px",borderRadius:12,border:`1px solid ${isAlmost?"rgba(217,119,6,.3)":C.border}`,background:isAlmost?"rgba(217,119,6,.06)":C.surface,cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+                          <p style={{color:C.text,fontWeight:700,fontSize:"0.95rem",margin:0}}>{time}</p>
+                          {isAlmost&&<p style={{color:C.warn,fontSize:"0.65rem",margin:"2px 0 0",fontWeight:600}}>1 lugar</p>}
+                          {!isAlmost&&<p style={{color:C.success,fontSize:"0.65rem",margin:"2px 0 0",fontWeight:600}}>Disponible</p>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function PatientApp({user}){
   const [patient,setPt]       = useState(null);
   const [pres,setPres]        = useState(null);
@@ -262,6 +455,7 @@ export default function PatientApp({user}){
 
   const NAV=[
     {id:"plan",    label:"Plan",    svg:<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>},
+    {id:"booking", label:"Reservar",svg:<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>},
     {id:"progress",label:"Progreso",svg:<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>},
     {id:"messages",label:"Chat",    svg:<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>},
   ];
@@ -419,6 +613,11 @@ export default function PatientApp({user}){
               </div>
             )}
           </div>
+        )}
+
+        {/* ── BOOKING ── */}
+        {tab==="booking"&&patient&&(
+          <BookingView patient={patient}/>
         )}
 
         {/* ── PROGRESS ── */}
