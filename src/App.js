@@ -577,6 +577,91 @@ function exportPDF(patient, prescription) {
   setTimeout(() => win.print(), 500);
 }
 
+
+// SESSION NOTES VIEW
+function SessionNotesView({ patient, user }) {
+  const [notes,setNotes]   = useState([]);
+  const [loading,setLoad]  = useState(true);
+  const [text,setText]     = useState("");
+  const [date,setDate]     = useState(new Date().toISOString().split("T")[0]);
+  const [saving,setSaving] = useState(false);
+
+  useEffect(()=>{ loadNotes(); },[patient.id]);
+
+  const loadNotes = async () => {
+    const {data} = await supabase.from("session_notes").select("*")
+      .eq("patient_id",patient.id).order("session_date",{ascending:false});
+    setNotes(data||[]); setLoad(false);
+  };
+
+  const saveNote = async () => {
+    if(!text.trim()) return;
+    setSaving(true);
+    await supabase.from("session_notes").insert({
+      therapist_id:user.id, patient_id:patient.id,
+      note:text.trim(), session_date:date
+    });
+    setText(""); setSaving(false); loadNotes();
+  };
+
+  const deleteNote = async (id) => {
+    if(!window.confirm("¿Eliminar esta nota?")) return;
+    await supabase.from("session_notes").delete().eq("id",id);
+    loadNotes();
+  };
+
+  return (
+    <div>
+      {/* New note form */}
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:18,marginBottom:14}}>
+        <p style={{color:C.muted,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,margin:"0 0 12px"}}>Nueva nota de sesión</p>
+        <div style={{display:"grid",gap:10}}>
+          <div>
+            <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Fecha de sesión</label>
+            <input type="date" value={date} onChange={e=>setDate(e.target.value)}
+              style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"9px 13px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/>
+          </div>
+          <div>
+            <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Observaciones clínicas</label>
+            <textarea value={text} onChange={e=>setText(e.target.value)} rows={4}
+              placeholder="Evolución del paciente, ejercicios realizados, observaciones, próximos objetivos..."
+              style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:11,padding:"10px 13px",fontSize:14,color:C.text,outline:"none",width:"100%",resize:"none",lineHeight:1.6}}/>
+          </div>
+          <button onClick={saveNote} disabled={!text.trim()||saving}
+            style={{background:text.trim()?C.accentG:"rgba(255,255,255,0.04)",border:"none",borderRadius:12,padding:11,color:text.trim()?"#fff":C.dim,fontWeight:700,cursor:text.trim()?"pointer":"default",fontSize:14}}>
+            {saving?"Guardando...":"Guardar nota"}
+          </button>
+        </div>
+      </div>
+
+      {/* Notes list */}
+      {loading ? <Spinner/> : notes.length===0 ? (
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:40,textAlign:"center"}}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="1.4" style={{marginBottom:12}}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <p style={{color:C.muted,fontSize:14}}>Sin notas de sesión aún</p>
+        </div>
+      ) : (
+        <div style={{display:"grid",gap:10}}>
+          {notes.map(n=>(
+            <div key={n.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.accentL} strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  <span style={{color:C.accentL,fontSize:13,fontWeight:600}}>{new Date(n.session_date+"T12:00").toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long"})}</span>
+                </div>
+                <button onClick={()=>deleteNote(n.id)} style={{background:"transparent",border:"none",color:C.dim,cursor:"pointer",display:"flex",alignItems:"center",padding:4}}>
+                  {Icon.trash}
+                </button>
+              </div>
+              <p style={{color:C.text,fontSize:14,lineHeight:1.65,margin:0,whiteSpace:"pre-wrap"}}>{n.note}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── PATIENT PROFILE ──────────────────────────────────────────────────────────
 function PatientProfile({ patient, user, onBack, onPrescribe, onApprove }) {
   const [prescriptions,setPrescriptions] = useState([]);
@@ -663,7 +748,7 @@ function PatientProfile({ patient, user, onBack, onPrescribe, onApprove }) {
       {/* Tabs + PDF */}
       <div style={{ display:"flex", gap:8, marginBottom:16, alignItems:"center" }}>
         <div style={{ flex:1, display:"flex", gap:3, background:C.surface, border:`1px solid ${C.border}`, borderRadius:16, padding:3 }}>
-          {[{id:"plans",label:"Planes"},{id:"progress",label:"Progreso"}].map(t=>(
+          {[{id:"plans",label:"Planes"},{id:"progress",label:"Progreso"},{id:"notes",label:"Notas"}].map(t=>(
             <button key={t.id} onClick={()=>setActiveTab(t.id)}
               style={{ flex:1, padding:"9px", borderRadius:13, border:"none", cursor:"pointer", fontWeight:600, fontSize:13, transition:"all 0.2s",
                 background: activeTab===t.id ? C.accent : "transparent",
@@ -707,6 +792,13 @@ function PatientProfile({ patient, user, onBack, onPrescribe, onApprove }) {
                   <div style={{ borderTop:`1px solid ${C.border}`, padding:16 }}>
                     {/* Edit / Delete buttons */}
                     <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+                      <button onClick={async()=>{
+                        if(!window.confirm("¿Duplicar este plan?")) return;
+                        await supabase.from("prescriptions").insert({patient_id:patient.id,therapist_id:user.id,exercises:pres.exercises,note:(pres.note||"")+" (copia)"});
+                        fetchPrescriptions();
+                      }} style={{ background:"rgba(126,87,194,0.12)", border:"1px solid rgba(126,87,194,0.25)", borderRadius:10, padding:"8px 10px", color:"#9c64f0", fontWeight:600, fontSize:12, cursor:"pointer" }}>
+                        Duplicar
+                      </button>
                       <button onClick={()=>setEditPres(pres)}
                         style={{ flex:1, background:"rgba(38,166,154,0.15)", border:"1px solid rgba(38,166,154,0.3)", borderRadius:12, padding:"8px", color:C.accent, fontWeight:600, fontSize:13, cursor:"pointer" }}>
                         Editar plan
@@ -750,6 +842,10 @@ function PatientProfile({ patient, user, onBack, onPrescribe, onApprove }) {
       )}
 
       {/* Progress */}
+      {activeTab==="notes" && (
+        <SessionNotesView patient={patient} user={user}/>
+      )}
+
       {activeTab==="progress" && (
         <div>
           {logs.length===0 ? (
@@ -815,6 +911,19 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
     fetchPatients();
   };
 
+  const [editPatient,setEditPatient] = useState(null);
+
+  const saveEdit = async () => {
+    if(!editPatient||!form.name) return;
+    await supabase.from("patients").update({
+      name:form.name, age:parseInt(form.age)||null,
+      condition:form.condition, email:form.email
+    }).eq("id",editPatient.id);
+    setEditPatient(null);
+    setForm({name:"",age:"",condition:"",next_session:"",email:""});
+    fetchPatients();
+  };
+
   const addPatient = async () => {
     if(!form.name) return;
     const token = crypto.randomUUID();
@@ -860,6 +969,24 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
         </div>
       )}
 
+      {editPatient && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:50,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:20,padding:24,width:"100%",maxWidth:420}}>
+            <h3 style={{color:C.text,fontWeight:700,fontSize:17,margin:"0 0 16px"}}>Editar paciente</h3>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div style={{gridColumn:"1/-1"}}><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Nombre *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:11,padding:"9px 13px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/></div>
+              <div style={{gridColumn:"1/-1"}}><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Correo</label><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} type="email" style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:11,padding:"9px 13px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/></div>
+              <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Edad</label><input value={form.age} onChange={e=>setForm({...form,age:e.target.value})} type="number" style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:11,padding:"9px 13px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/></div>
+              <div><label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Diagnóstico</label><input value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:11,padding:"9px 13px",fontSize:14,color:C.text,outline:"none",width:"100%"}}/></div>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:14}}>
+              <button onClick={saveEdit} style={{flex:1,background:C.accentG,border:"none",borderRadius:12,padding:11,color:"#fff",fontWeight:700,cursor:"pointer"}}>Guardar</button>
+              <button onClick={()=>{setEditPatient(null);setForm({name:"",age:"",condition:"",next_session:"",email:""}); }} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 16px",color:C.muted,cursor:"pointer"}}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ position:"relative", marginBottom:14 }}>
         <svg style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar paciente..." style={{...inp,paddingLeft:38}}/>
@@ -895,7 +1022,8 @@ function PatientsView({ user, onPrescribe, onViewProfile }) {
                       Aprobar
                     </button>
                   )}
-                  <button onClick={()=>onPrescribe(p)} style={{ background:"rgba(38,166,154,0.15)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:12, padding:"7px 12px", color:C.accent, fontWeight:600, fontSize:13, cursor:"pointer" }}>Prescribir</button>
+                  <button onClick={()=>onPrescribe(p)} style={{ background:"rgba(38,166,154,0.15)", border:"1px solid rgba(38,166,154,0.25)", borderRadius:10, padding:"6px 10px", color:C.accent, fontWeight:600, fontSize:12, cursor:"pointer" }}>Prescribir</button>
+                  <button onClick={e=>{e.stopPropagation();setEditPatient(p);setForm({name:p.name,age:p.age||"",condition:p.condition||"",next_session:"",email:p.email||""});}} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:10, padding:"6px 9px", color:C.muted, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center" }}>{Icon.edit}</button>
                   {p.invite_token && <button onClick={()=>setShowInvite(p)} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:"7px 10px", color:C.muted, fontSize:13, cursor:"pointer" }}>{Icon.link}</button>}
                 </div>
               </div>
@@ -1389,90 +1517,167 @@ function BibliotecaView({ user }) {
 
 // ─── DASHBOARD VIEW ───────────────────────────────────────────────────────────
 function DashboardView({ user, onNavigate }) {
-  const [stats,setStats]    = useState({patients:0,active:0,pending:0,appointments:0,messages:0});
-  const [recent,setRecent]  = useState([]);
-  const [apts,setApts]      = useState([]);
-  const [loading,setLoading]= useState(true);
+  const [stats,setStats]       = useState({patients:0,active:0,pending:0,appointments:0,messages:0,requests:0});
+  const [recent,setRecent]     = useState([]);
+  const [apts,setApts]         = useState([]);
+  const [requests,setRequests] = useState([]);
+  const [loading,setLoading]   = useState(true);
 
-  useEffect(()=>{
-    const fetch = async () => {
-      const [{data:patients},{data:appointments},{data:messages}] = await Promise.all([
-        supabase.from("patients").select("*"),
-        supabase.from("appointments").select("*").gte("date", localDateStr(new Date())).order("date").limit(5),
-        supabase.from("messages").select("*").eq("unread",true),
-      ]);
-      const p=patients||[];
-      setStats({ patients:p.length, active:p.filter(x=>x.invite_status==="aprobado").length, pending:p.filter(x=>x.invite_status==="pendiente").length, appointments:(appointments||[]).length, messages:(messages||[]).length });
-      setRecent(p.slice(0,5));
-      setApts(appointments||[]);
-      setLoading(false);
-    };
-    fetch();
-  },[]);
+  useEffect(()=>{ load(); },[]);
 
-  const today=new Date().toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long"});
+  const load = async () => {
+    const [
+      {data:patients},
+      {data:appointments},
+      {data:messages},
+      {data:reqs}
+    ] = await Promise.all([
+      supabase.from("patients").select("*"),
+      supabase.from("appointments").select("*").gte("date",localDateStr(new Date())).order("date").limit(4),
+      supabase.from("messages").select("*").eq("unread",true),
+      supabase.from("access_requests").select("*").order("created_at",{ascending:false}),
+    ]);
+    const p = patients||[];
+    setStats({
+      patients:p.length, active:p.filter(x=>x.invite_status==="aprobado").length,
+      pending:p.filter(x=>x.invite_status==="pendiente").length,
+      appointments:(appointments||[]).length,
+      messages:(messages||[]).length,
+      requests:(reqs||[]).length,
+    });
+    setRecent(p.slice(0,4));
+    setApts(appointments||[]);
+    setRequests(reqs||[]);
+    setLoading(false);
+  };
+
+  const approveRequest = async (req) => {
+    // Create patient record linked to this user
+    const {data:pat} = await supabase.from("patients").insert({
+      name: req.email.split("@")[0],
+      email: req.email,
+      therapist_id: user.id,
+      user_id: req.user_id,
+      invite_status: "aprobado",
+      invite_token: crypto.randomUUID(),
+    }).select().single();
+    await supabase.from("access_requests").delete().eq("id",req.id);
+    load();
+  };
+
+  const rejectRequest = async (id) => {
+    await supabase.from("access_requests").delete().eq("id",id);
+    load();
+  };
+
+  const today = new Date().toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long"});
 
   const statCards=[
-    {label:"Pacientes", value:stats.patients, sub:`${stats.active} activos`, color:C.accent, tab:"patients"},
-    {label:"Pendientes", value:stats.pending, sub:"por aprobar", color:C.warn, tab:"patients"},
-    {label:"Citas", value:stats.appointments, sub:"próximas", color:"#7e57c2", tab:"agenda"},
-    {label:"Mensajes", value:stats.messages, sub:"sin leer", color:"#42a5f5", tab:"messages"},
+    {label:"Pacientes",   value:stats.patients,     sub:`${stats.active} activos`,  color:C.accent,  tab:"patients"},
+    {label:"Pendientes",  value:stats.pending,       sub:"por aprobar",              color:C.warn,    tab:"patients"},
+    {label:"Citas",       value:stats.appointments,  sub:"próximas",                 color:"#7e57c2", tab:"agenda"},
+    {label:"Mensajes",    value:stats.messages,      sub:"sin leer",                 color:"#42a5f5", tab:"messages"},
   ];
 
-  if(loading) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:80}}><div style={{width:32,height:32,border:`3px solid ${C.accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style></div>;
+  if(loading) return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:60}}>
+      <div style={{width:28,height:28,border:`3px solid ${C.accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+      <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+    </div>
+  );
 
-  return (
-    <div>
-      <div style={{marginBottom:28}}>
-        <p style={{color:C.muted,fontSize:13,marginBottom:4,textTransform:"capitalize"}}>{today}</p>
-        <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:28,margin:0}}>Panel de control</h2>
+  return(
+    <div style={{maxWidth:1000}}>
+      {/* Header */}
+      <div style={{marginBottom:20}}>
+        <p style={{color:C.muted,fontSize:12,marginBottom:3,textTransform:"capitalize"}}>{today}</p>
+        <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:22,margin:0}}>Panel de control</h2>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:14,marginBottom:24}}>
+      {/* Access requests alert */}
+      {requests.length>0 && (
+        <div style={{background:"rgba(255,167,38,0.08)",border:"1px solid rgba(255,167,38,0.3)",borderRadius:16,padding:"14px 16px",marginBottom:16}}>
+          <p style={{color:C.warn,fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,margin:"0 0 10px"}}>
+            Solicitudes de acceso ({requests.length})
+          </p>
+          <div style={{display:"grid",gap:8}}>
+            {requests.map(req=>(
+              <div key={req.id} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(0,0,0,0.2)",borderRadius:10,padding:"8px 12px"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{color:C.text,fontSize:13,fontWeight:600,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{req.email}</p>
+                  <p style={{color:C.dim,fontSize:11,margin:"2px 0 0"}}>{new Date(req.created_at).toLocaleDateString("es-CO")}</p>
+                </div>
+                <button onClick={()=>approveRequest(req)}
+                  style={{background:"rgba(102,187,106,0.15)",border:"1px solid rgba(102,187,106,0.3)",borderRadius:8,padding:"5px 12px",color:C.success,fontWeight:700,fontSize:12,cursor:"pointer",flexShrink:0}}>
+                  Aprobar
+                </button>
+                <button onClick={()=>rejectRequest(req.id)}
+                  style={{background:"rgba(239,83,80,0.1)",border:"1px solid rgba(239,83,80,0.2)",borderRadius:8,padding:"5px 10px",color:C.danger,fontSize:12,cursor:"pointer",flexShrink:0}}>
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Stat cards — compact 2x2 grid */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
         {statCards.map((s,i)=>(
           <div key={i} onClick={()=>s.tab&&onNavigate(s.tab)}
-            style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:20,position:"relative",overflow:"hidden",cursor:s.tab?"pointer":"default",transition:"all 0.15s"}}
-            onMouseEnter={e=>{ if(s.tab) e.currentTarget.style.borderColor=s.color+"66"; }}
+            style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",position:"relative",overflow:"hidden",cursor:s.tab?"pointer":"default",transition:"border-color 0.15s"}}
+            onMouseEnter={e=>{ if(s.tab) e.currentTarget.style.borderColor=s.color+"55"; }}
             onMouseLeave={e=>{ e.currentTarget.style.borderColor=C.border; }}>
-            <div style={{position:"absolute",top:-16,right:-16,width:70,height:70,borderRadius:"50%",background:`${s.color}18`}}/>
-            <p style={{color:s.color,fontSize:36,fontWeight:700,margin:0,lineHeight:1}}>{s.value}</p>
-            <p style={{color:C.text,fontSize:14,fontWeight:600,margin:"6px 0 2px"}}>{s.label}</p>
-            <p style={{color:C.muted,fontSize:12,margin:0}}>{s.sub}</p>
+            <div style={{position:"absolute",top:-10,right:-10,width:52,height:52,borderRadius:"50%",background:`${s.color}14`}}/>
+            <p style={{color:s.color,fontSize:28,fontWeight:700,margin:0,lineHeight:1}}>{s.value}</p>
+            <p style={{color:C.text,fontSize:13,fontWeight:600,margin:"5px 0 1px"}}>{s.label}</p>
+            <p style={{color:C.muted,fontSize:11,margin:0}}>{s.sub}</p>
           </div>
         ))}
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:20}}>
-          <h3 style={{color:C.text,fontSize:15,fontWeight:600,margin:"0 0 16px",display:"flex",alignItems:"center",gap:8}}>{Icon.agenda} Próximas citas</h3>
-          {apts.length===0?<p style={{color:C.muted,fontSize:14,textAlign:"center",padding:"16px 0"}}>Sin citas programadas</p>:apts.map(a=>(
-            <div key={a.id} style={{display:"flex",gap:12,alignItems:"center",marginBottom:12}}>
-              <div style={{background:`rgba(38,166,154,0.1)`,border:`1px solid rgba(38,166,154,0.2)`,borderRadius:10,padding:"5px 10px",textAlign:"center",minWidth:50}}>
-                <p style={{color:C.accent,fontWeight:700,fontSize:14,margin:0}}>{a.time||"--"}</p>
+      {/* Two columns */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        {/* Upcoming */}
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 16px"}}>
+          <h3 style={{color:C.text,fontSize:13,fontWeight:600,margin:"0 0 12px",display:"flex",alignItems:"center",gap:7}}>
+            {Icon.agenda} Próximas citas
+          </h3>
+          {apts.length===0 ? (
+            <p style={{color:C.muted,fontSize:12,textAlign:"center",padding:"10px 0"}}>Sin citas</p>
+          ) : apts.map(a=>(
+            <div key={a.id} style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
+              <div style={{background:"rgba(38,166,154,0.1)",border:"1px solid rgba(38,166,154,0.2)",borderRadius:8,padding:"4px 8px",textAlign:"center",minWidth:44,flexShrink:0}}>
+                <p style={{color:C.accent,fontWeight:700,fontSize:13,margin:0}}>{a.time||"--"}</p>
                 <p style={{color:C.muted,fontSize:10,margin:0}}>{a.date?.slice(5)}</p>
               </div>
-              <div>
-                <p style={{color:C.text,fontWeight:600,fontSize:13,margin:0}}>{a.patient_name}</p>
-                <p style={{color:C.muted,fontSize:12,margin:"2px 0 0"}}>{a.type}</p>
+              <div style={{minWidth:0}}>
+                <p style={{color:C.text,fontWeight:600,fontSize:12,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.patient_name}</p>
+                <p style={{color:C.muted,fontSize:11,margin:"1px 0 0"}}>{a.type}</p>
               </div>
             </div>
           ))}
         </div>
 
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:20}}>
-          <h3 style={{color:C.text,fontSize:15,fontWeight:600,margin:"0 0 16px",display:"flex",alignItems:"center",gap:8}}>{Icon.patients} Pacientes recientes</h3>
+        {/* Recent patients */}
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 16px"}}>
+          <h3 style={{color:C.text,fontSize:13,fontWeight:600,margin:"0 0 12px",display:"flex",alignItems:"center",gap:7}}>
+            {Icon.patients} Pacientes recientes
+          </h3>
           {recent.map(p=>(
             <div key={p.id} onClick={()=>onNavigate("patients",p)}
-              style={{display:"flex",gap:10,alignItems:"center",marginBottom:12,cursor:"pointer",borderRadius:12,padding:"4px",transition:"background 0.15s"}}
-              onMouseEnter={e=>e.currentTarget.style.background="rgba(38,166,154,0.06)"}
-              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <div style={{width:36,height:36,borderRadius:10,background:C.accentG,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:12,flexShrink:0}}>{(p.name||"?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}</div>
+              style={{display:"flex",gap:8,alignItems:"center",marginBottom:10,cursor:"pointer",borderRadius:8,padding:"2px 0",transition:"opacity 0.15s"}}
+              onMouseEnter={e=>e.currentTarget.style.opacity="0.7"}
+              onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+              <div style={{width:30,height:30,borderRadius:9,background:C.accentG,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:11,flexShrink:0}}>
+                {(p.name||"?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}
+              </div>
               <div style={{flex:1,minWidth:0}}>
-                <p style={{color:C.text,fontWeight:600,fontSize:13,margin:0}}>{p.name}</p>
-                <p style={{color:C.muted,fontSize:11,margin:"2px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.condition||"Sin diagnóstico"}</p>
+                <p style={{color:C.text,fontWeight:600,fontSize:12,margin:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</p>
+                <p style={{color:C.muted,fontSize:11,margin:"1px 0 0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.condition||"Sin diagnóstico"}</p>
               </div>
-              {p.invite_status==="pendiente"&&<span style={{fontSize:10,background:"rgba(255,167,38,0.15)",color:C.warn,padding:"2px 7px",borderRadius:8,fontWeight:600,flexShrink:0}}>Pendiente</span>}
-              {p.invite_status==="aprobado"&&<span style={{fontSize:10,background:"rgba(102,187,106,0.15)",color:"#66bb6a",padding:"2px 7px",borderRadius:8,fontWeight:600,flexShrink:0}}>Activo</span>}
+              {p.invite_status==="pendiente"&&<span style={{fontSize:9,background:"rgba(255,167,38,.15)",color:C.warn,padding:"2px 6px",borderRadius:6,fontWeight:600,flexShrink:0}}>Pendiente</span>}
+              {p.invite_status==="aprobado"&&<span style={{fontSize:9,background:"rgba(102,187,106,.15)",color:C.success,padding:"2px 6px",borderRadius:6,fontWeight:600,flexShrink:0}}>Activo</span>}
             </div>
           ))}
         </div>
@@ -1481,177 +1686,12 @@ function DashboardView({ user, onNavigate }) {
   );
 }
 
-// ─── PAYMENTS VIEW ─────────────────────────────────────────────────────────────
-function PaymentsView({ user }) {
-  const [payments,setPayments]  = useState([]);
-  const [patients,setPatients]  = useState([]);
-  const [loading,setLoading]    = useState(true);
-  const [showForm,setShowForm]  = useState(false);
-  const [copiedField,setCopied] = useState("");
-  const [form,setForm] = useState({patient_id:"",amount:"",concept:"Sesión de fisioterapia",due_date:""});
 
-  useEffect(()=>{
-    Promise.all([
-      supabase.from("payments").select("*,patients(name)").order("created_at",{ascending:false}),
-      supabase.from("patients").select("id,name"),
-    ]).then(([{data:pay},{data:pat}])=>{ setPayments(pay||[]); setPatients(pat||[]); setLoading(false); });
-  },[]);
-
-  const createPayment = async ()=>{
-    if(!form.patient_id||!form.amount) return;
-    await supabase.from("payments").insert({...form,therapist_id:user.id,amount:parseFloat(form.amount),status:"pendiente"});
-    setForm({patient_id:"",amount:"",concept:"Sesión de fisioterapia",due_date:""}); setShowForm(false);
-    const {data}=await supabase.from("payments").select("*,patients(name)").order("created_at",{ascending:false});
-    setPayments(data||[]);
-  };
-
-  const markPaid=async(id)=>{ await supabase.from("payments").update({status:"pagado"}).eq("id",id); setPayments(prev=>prev.map(p=>p.id===id?{...p,status:"pagado"}:p)); };
-  const copyField=(val,field)=>{ navigator.clipboard.writeText(val); setCopied(field); setTimeout(()=>setCopied(""),2000); };
-
-  const totalPaid=payments.filter(p=>p.status==="pagado").reduce((s,p)=>s+p.amount,0);
-  const totalPending=payments.filter(p=>p.status==="pendiente").reduce((s,p)=>s+p.amount,0);
-  const fmt=n=>new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",minimumFractionDigits:0}).format(n);
-
-  const inp2=(extra={})=>({background:C.card,border:`1px solid ${C.border}`,borderRadius:11,padding:"10px 13px",fontSize:14,color:C.text,outline:"none",width:"100%",...extra});
-
-  return (
-    <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
-        <div>
-          <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:28,margin:0}}>Pagos</h2>
-          <p style={{color:C.muted,fontSize:13,marginTop:4}}>Gestiona cobros a tus pacientes</p>
-        </div>
-        <button onClick={()=>setShowForm(!showForm)} style={{background:C.accentG,border:"none",borderRadius:12,padding:"10px 18px",color:"#fff",fontWeight:700,cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",gap:6,boxShadow:`0 4px 16px rgba(38,166,154,0.25)`}}>
-          {Icon.plus} Nuevo cobro
-        </button>
-      </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:20}}>
-        <div style={{background:C.card,border:"1px solid rgba(102,187,106,0.25)",borderRadius:16,padding:18}}>
-          <p style={{color:"#66bb6a",fontSize:11,fontWeight:700,margin:"0 0 5px",textTransform:"uppercase",letterSpacing:1}}>Recibido</p>
-          <p style={{color:C.text,fontSize:24,fontWeight:700,margin:0}}>{fmt(totalPaid)}</p>
-        </div>
-        <div style={{background:C.card,border:"1px solid rgba(255,167,38,0.25)",borderRadius:16,padding:18}}>
-          <p style={{color:C.warn,fontSize:11,fontWeight:700,margin:"0 0 5px",textTransform:"uppercase",letterSpacing:1}}>Por cobrar</p>
-          <p style={{color:C.text,fontSize:24,fontWeight:700,margin:0}}>{fmt(totalPending)}</p>
-        </div>
-      </div>
-
-      {/* Bank info */}
-      <div style={{background:"linear-gradient(135deg,#0d2a28,#0f1e2e)",border:"1px solid rgba(38,166,154,0.25)",borderRadius:20,padding:20,marginBottom:20}}>
-        <p style={{color:C.accentL,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,margin:"0 0 14px"}}>Datos para transferencia</p>
-        <div style={{display:"grid",gap:8}}>
-          {[
-            {label:"Banco",val:PAYMENT_INFO.bank},
-            {label:"Tipo de cuenta",val:PAYMENT_INFO.type},
-            {label:"Número de cuenta",val:PAYMENT_INFO.number,copy:true},
-            {label:"Titular",val:PAYMENT_INFO.holder},
-            ...(PAYMENT_INFO.nequi?[{label:"Nequi",val:PAYMENT_INFO.nequi,copy:true}]:[]),
-            ...(PAYMENT_INFO.alias?[{label:"Alias Bancolombia",val:PAYMENT_INFO.alias,copy:true}]:[]),
-          ].map((f,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(0,0,0,0.2)",borderRadius:10,padding:"8px 13px"}}>
-              <div>
-                <p style={{color:C.muted,fontSize:11,margin:0}}>{f.label}</p>
-                <p style={{color:C.text,fontWeight:600,fontSize:14,margin:"2px 0 0"}}>{f.val}</p>
-              </div>
-              {f.copy&&<button onClick={()=>copyField(f.val,f.label)} style={{background:copiedField===f.label?"rgba(102,187,106,0.2)":"rgba(38,166,154,0.12)",border:`1px solid ${copiedField===f.label?"rgba(102,187,106,0.4)":"rgba(38,166,154,0.25)"}`,borderRadius:8,padding:"5px 10px",color:copiedField===f.label?"#66bb6a":C.accent,fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-                {Icon.copy}{copiedField===f.label?"¡Copiado!":"Copiar"}
-              </button>}
-            </div>
-          ))}
-        </div>
-        <div style={{marginTop:14,background:"rgba(0,0,0,0.2)",borderRadius:10,padding:14,display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:64,height:64,background:"white",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:10,color:"#333",textAlign:"center",lineHeight:1.3}}>
-            <div>QR<br/>aquí</div>
-          </div>
-          <div>
-            <p style={{color:C.accentL,fontWeight:600,fontSize:13,margin:"0 0 3px"}}>QR para pago (Nequi / Bancolombia)</p>
-            <p style={{color:C.muted,fontSize:12,margin:0}}>Reemplaza el recuadro blanco por tu imagen QR real. Edita el código en <code style={{color:C.accentL}}>PAYMENT_INFO</code> con tus datos reales.</p>
-          </div>
-        </div>
-      </div>
-
-      {showForm&&(
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:18,padding:20,marginBottom:16}}>
-          <h3 style={{color:C.text,fontSize:15,fontWeight:600,margin:"0 0 14px"}}>Nuevo cobro</h3>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div style={{gridColumn:"1/-1"}}>
-              <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Paciente *</label>
-              <select value={form.patient_id} onChange={e=>setForm({...form,patient_id:e.target.value})} style={inp2()}>
-                <option value="">Selecciona paciente...</option>
-                {patients.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Monto (COP) *</label>
-              <input type="number" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} placeholder="80000" style={inp2()}/>
-            </div>
-            <div>
-              <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Vence</label>
-              <input type="date" value={form.due_date} onChange={e=>setForm({...form,due_date:e.target.value})} style={inp2()}/>
-            </div>
-            <div style={{gridColumn:"1/-1"}}>
-              <label style={{fontSize:12,color:C.muted,display:"block",marginBottom:5}}>Concepto</label>
-              <input value={form.concept} onChange={e=>setForm({...form,concept:e.target.value})} style={inp2()}/>
-            </div>
-            <div style={{gridColumn:"1/-1",display:"flex",gap:10}}>
-              <button onClick={createPayment} style={{flex:1,background:C.accentG,border:"none",borderRadius:11,padding:11,color:"#fff",fontWeight:700,cursor:"pointer"}}>Crear cobro</button>
-              <button onClick={()=>setShowForm(false)} style={{background:"#1a2035",border:`1px solid ${C.border}`,borderRadius:11,padding:"11px 16px",color:C.muted,cursor:"pointer"}}>Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {loading?<div style={{display:"flex",alignItems:"center",justifyContent:"center",padding:40}}><div style={{width:28,height:28,border:`3px solid ${C.accent}`,borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/></div>:payments.length===0?(
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:40,textAlign:"center"}}>
-          <p style={{color:C.muted}}>Sin cobros registrados</p>
-        </div>
-      ):(
-        <div style={{display:"grid",gap:8}}>
-          {payments.map(p=>(
-            <div key={p.id} style={{background:C.card,border:`1px solid ${p.status==="pagado"?"rgba(102,187,106,0.3)":"rgba(255,167,38,0.25)"}`,borderRadius:14,padding:16}}>
-              <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
-                    <p style={{color:C.text,fontWeight:600,fontSize:15,margin:0}}>{p.patients?.name||"Paciente"}</p>
-                    <span style={{fontSize:10,padding:"2px 8px",borderRadius:10,fontWeight:600,background:p.status==="pagado"?"rgba(102,187,106,0.15)":"rgba(255,167,38,0.12)",color:p.status==="pagado"?"#66bb6a":C.warn}}>{p.status==="pagado"?"Pagado":"Pendiente"}</span>
-                  </div>
-                  <p style={{color:C.muted,fontSize:12,margin:0}}>{p.concept}{p.due_date?` · Vence ${p.due_date}`:""}</p>
-                </div>
-                <div style={{textAlign:"right"}}>
-                  <p style={{color:C.accent,fontWeight:700,fontSize:18,margin:0}}>{fmt(p.amount)}</p>
-                  {p.status==="pendiente"&&<button onClick={()=>markPaid(p.id)} style={{marginTop:5,background:"rgba(102,187,106,0.12)",border:"1px solid rgba(102,187,106,0.3)",borderRadius:8,padding:"4px 10px",color:"#66bb6a",fontWeight:600,fontSize:12,cursor:"pointer"}}>Marcar pagado</button>}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── THERAPIST APP — SIDEBAR ────────────────────────────────────────────────────
 function TherapistApp({ user }) {
-  const [tab,setTab]                         = useState("dashboard");
-  const [prescribePatient,setPrescribePatient]= useState(null);
-  const [profilePatient,setProfilePatient]   = useState(null);
-  const [collapsed,setCollapsed]             = useState(false);
-  const [installPrompt,setInstallPrompt]     = useState(null);
-  const [showInstallBanner,setShowInstallBanner] = useState(false);
-
-  useEffect(()=>{
-    const handler = e => { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true); };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  },[]);
-
-  const handleInstall = async () => {
-    if(!installPrompt) return;
-    installPrompt.prompt();
-    const {outcome} = await installPrompt.userChoice;
-    if(outcome==='accepted') setShowInstallBanner(false);
-  };
+  const [tab,setTab]                           = useState("dashboard");
+  const [prescribePatient,setPrescribePatient] = useState(null);
+  const [profilePatient,setProfilePatient]     = useState(null);
+  const [collapsed,setCollapsed]               = useState(true); // start collapsed
 
   const handleViewProfile = p=>{ setProfilePatient(p); setPrescribePatient(null); };
   const handlePrescribe   = p=>{ setPrescribePatient(p); setProfilePatient(null); setTab("patients"); };
@@ -1664,77 +1704,65 @@ function TherapistApp({ user }) {
     {id:"messages",  label:"Mensajes",   icon:Icon.messages},
   ];
 
-  const sideW = collapsed ? 64 : 220;
+  const sideW = collapsed ? 56 : 200;
 
   return (
     <div style={{minHeight:"100vh",background:C.bg,display:"flex"}}>
-      {/* Install banner */}
-      {showInstallBanner && (
-        <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:30,background:"linear-gradient(135deg,#0d2a28,#0f1e2e)",borderTop:`1px solid rgba(38,166,154,0.3)`,padding:"12px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{width:36,height:36,background:C.accentG,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-            </div>
-            <div>
-              <p style={{color:C.text,fontWeight:600,fontSize:14,margin:0}}>Instalar FisioApp</p>
-              <p style={{color:C.muted,fontSize:12,margin:0}}>Accede más rápido desde tu celular o escritorio</p>
-            </div>
-          </div>
-          <div style={{display:"flex",gap:8,flexShrink:0}}>
-            <button onClick={handleInstall} style={{background:C.accentG,border:"none",borderRadius:10,padding:"8px 16px",color:"#fff",fontWeight:700,cursor:"pointer",fontSize:13}}>Instalar</button>
-            <button onClick={()=>setShowInstallBanner(false)} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:10,padding:"8px 12px",color:C.muted,cursor:"pointer",fontSize:13}}>Ahora no</button>
-          </div>
-        </div>
-      )}
-
       {/* Sidebar */}
-      <aside style={{width:sideW,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:20,transition:"width 0.25s ease",overflow:"hidden"}}>
-        <div style={{padding:"18px 14px 14px",display:"flex",alignItems:"center",gap:12,borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
-          <div style={{width:34,height:34,background:C.accentG,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:`0 0 18px rgba(38,166,154,0.3)`}}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-          </div>
-          {!collapsed&&<span style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:16,fontWeight:700,whiteSpace:"nowrap"}}>FisioApp</span>}
+      <aside style={{width:sideW,background:C.surface,borderRight:`1px solid ${C.border}`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,bottom:0,zIndex:20,transition:"width 0.2s cubic-bezier(.16,1,.3,1)",overflow:"hidden",flexShrink:0}}>
+        {/* Logo + collapse button */}
+        <div style={{padding:"12px 10px",display:"flex",alignItems:"center",justifyContent:collapsed?"center":"space-between",borderBottom:`1px solid ${C.border}`,flexShrink:0,gap:8}}>
+          {!collapsed && (
+            <div style={{display:"flex",alignItems:"center",gap:9,minWidth:0}}>
+              <div style={{width:30,height:30,background:C.accentG,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              </div>
+              <span style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:14,fontWeight:700,whiteSpace:"nowrap"}}>FisioApp</span>
+            </div>
+          )}
+          {/* Small collapse toggle */}
+          <button onClick={()=>setCollapsed(!collapsed)} title={collapsed?"Expandir":"Contraer"}
+            style={{width:28,height:28,borderRadius:8,border:`1px solid ${C.border}`,background:C.card,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:C.dim,flexShrink:0,transition:"all 0.15s"}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+              style={{transform:collapsed?"rotate(180deg)":"none",transition:"transform 0.2s"}}>
+              <path d="M11 19l-7-7 7-7M19 19l-7-7 7-7"/>
+            </svg>
+          </button>
         </div>
 
-        <nav style={{flex:1,padding:"10px 8px",display:"flex",flexDirection:"column",gap:2,overflowY:"auto"}}>
+        <nav style={{flex:1,padding:"8px 6px",display:"flex",flexDirection:"column",gap:2,overflowY:"auto"}}>
           {navItems.map(item=>{
             const active=tab===item.id&&!prescribePatient&&!profilePatient;
             return (
-              <button key={item.id} onClick={()=>{setTab(item.id);handleBack();}}
-                style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:11,border:"none",cursor:"pointer",width:"100%",textAlign:"left",transition:"all 0.15s",
+              <button key={item.id} onClick={()=>{setTab(item.id);handleBack();}} title={item.label}
+                style={{display:"flex",alignItems:"center",gap:10,padding:collapsed?"10px":"9px 11px",borderRadius:10,border:"none",cursor:"pointer",width:"100%",textAlign:"left",transition:"all 0.15s",justifyContent:collapsed?"center":"flex-start",
                   background:active?"rgba(38,166,154,0.14)":"transparent",
                   color:active?C.accent:C.muted,
-                  borderLeft:active?`2px solid ${C.accent}`:"2px solid transparent",
+                  borderLeft:(!collapsed&&active)?`2px solid ${C.accent}`:"2px solid transparent",
                 }}>
                 <span style={{flexShrink:0}}>{item.icon}</span>
-                {!collapsed&&<span style={{fontSize:14,fontWeight:active?600:400,whiteSpace:"nowrap"}}>{item.label}</span>}
+                {!collapsed&&<span style={{fontSize:13,fontWeight:active?600:400,whiteSpace:"nowrap"}}>{item.label}</span>}
               </button>
             );
           })}
         </nav>
 
-        <div style={{padding:"10px 8px",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:2}}>
-          <button onClick={()=>setCollapsed(!collapsed)}
-            style={{display:"flex",alignItems:"center",gap:12,padding:"9px 12px",borderRadius:11,border:"none",cursor:"pointer",background:"transparent",color:C.dim,width:"100%"}}>
-            <span style={{transform:collapsed?"rotate(180deg)":"none",transition:"transform 0.25s",flexShrink:0}}>{Icon.collapse}</span>
-            {!collapsed&&<span style={{fontSize:13,whiteSpace:"nowrap"}}>Contraer</span>}
-          </button>
-          <button onClick={()=>supabase.auth.signOut()}
-            style={{display:"flex",alignItems:"center",gap:12,padding:"9px 12px",borderRadius:11,border:"none",cursor:"pointer",background:"transparent",color:C.dim,width:"100%"}}>
+        <div style={{padding:"6px",borderTop:`1px solid ${C.border}`}}>
+          <button onClick={()=>supabase.auth.signOut()} title="Cerrar sesión"
+            style={{display:"flex",alignItems:"center",gap:10,padding:collapsed?"10px":"9px 11px",borderRadius:10,border:"none",cursor:"pointer",background:"transparent",color:C.dim,width:"100%",justifyContent:collapsed?"center":"flex-start"}}>
             {Icon.logout}
             {!collapsed&&<span style={{fontSize:13,whiteSpace:"nowrap"}}>Cerrar sesión</span>}
           </button>
         </div>
       </aside>
 
-      <main style={{flex:1,marginLeft:sideW,transition:"margin-left 0.25s ease",padding:"32px 28px",minHeight:"100vh",overflowX:"hidden"}}>
+      <main style={{flex:1,marginLeft:sideW,transition:"margin-left 0.2s cubic-bezier(.16,1,.3,1)",padding:"24px 24px",minHeight:"100vh",overflowX:"hidden",overflowY:"auto"}}>
         {tab==="dashboard"&&<DashboardView user={user} onNavigate={(t,p)=>{setTab(t);if(p)setProfilePatient(p);}}/>}
         {tab==="patients"&&!prescribePatient&&!profilePatient&&<PatientsView user={user} onPrescribe={handlePrescribe} onViewProfile={handleViewProfile}/>}
         {tab==="patients"&&prescribePatient&&<PrescribeView user={user} patient={prescribePatient} onBack={handleBack}/>}
         {tab==="patients"&&profilePatient&&<PatientProfile patient={profilePatient} user={user} onBack={handleBack} onPrescribe={handlePrescribe} onApprove={async(id)=>{ await supabase.from("patients").update({invite_status:"aprobado"}).eq("id",id); setProfilePatient(prev=>({...prev,invite_status:"aprobado"})); }}/>}
         {tab==="agenda"&&<AgendaView user={user}/>}
         {tab==="messages"&&<MessagesView user={user}/>}
-
       </main>
     </div>
   );
@@ -1758,16 +1786,27 @@ export default function App() {
 
   useEffect(()=>{
     if(!user){ setRole(null); return; }
+    (async()=>{
     const THERAPIST_EMAIL = "celisone1@gmail.com";
     if(user.email === THERAPIST_EMAIL) {
       setRole("therapist");
       return;
     }
-    supabase.from("patients").select("id,invite_status").eq("user_id",user.id).maybeSingle()
-      .then(({data})=>{
-        if(data && data.invite_status==="aprobado") setRole("patient");
-        else setRole("pending"); // registered but not approved
-      });
+    // Check if linked to a patient
+    const {data: patData} = await supabase.from("patients")
+      .select("id,invite_status").eq("user_id",user.id).maybeSingle();
+    if(patData && patData.invite_status==="aprobado") {
+      setRole("patient");
+      return;
+    }
+    // Not linked - log access request so therapist can see it
+    const {data: existing} = await supabase.from("access_requests")
+      .select("id").eq("user_id",user.id).maybeSingle();
+    if(!existing) {
+      await supabase.from("access_requests").insert({user_id:user.id, email:user.email});
+    }
+    setRole("pending");
+    })();
   },[user]);
 
   if(user===undefined) return (
