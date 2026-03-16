@@ -253,11 +253,22 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
 
   const [selected,setSelected]     = useState(initBlocks);
   const [note,setNote]             = useState(existingPrescription?.note||"");
+  const [duration,setDuration]     = useState(existingPrescription?.duration_days||30);
   const [activeBlock,setActiveBlock]= useState("Trabajo central");
   const [search,setSearch]         = useState("");
   const [category,setCategory]     = useState("Todos");
   const [submitted,setSubmitted]   = useState(false);
   const [loading,setLoading]       = useState(false);
+
+  const DURATIONS = [
+    {days:7,  label:"1 semana"},
+    {days:14, label:"2 semanas"},
+    {days:21, label:"3 semanas"},
+    {days:30, label:"1 mes"},
+    {days:45, label:"45 días"},
+    {days:60, label:"2 meses"},
+    {days:90, label:"3 meses"},
+  ];
   const [customExs,setCustomExs]   = useState([]);
   const [showNewEx,setShowNewEx]   = useState(false);
   const [newEx,setNewEx]           = useState({name:"",description:"",category:"Rehabilitacion",default_sets:3,default_reps:"10"});
@@ -328,11 +339,17 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
     const allExercises = BLOCKS.flatMap(b=>(selected[b]||[]).map(e=>({...e,block:b})));
     if(!allExercises.length) return;
     setLoading(true);
+    const startDate = new Date().toISOString().split("T")[0];
+    const endDate = new Date(Date.now() + duration*24*60*60*1000).toISOString().split("T")[0];
     if(isEdit) {
-      const {error} = await supabase.from("prescriptions").update({exercises:allExercises,note}).eq("id",existingPrescription.id);
+      const {error} = await supabase.from("prescriptions")
+        .update({exercises:allExercises, note, duration_days:duration, end_date:endDate})
+        .eq("id",existingPrescription.id);
       if(!error) setSubmitted(true); else alert("Error: "+error.message);
     } else {
-      const {error} = await supabase.from("prescriptions").insert({patient_id:patient.id,therapist_id:user.id,exercises:allExercises,note});
+      const {error} = await supabase.from("prescriptions")
+        .insert({patient_id:patient.id, therapist_id:user.id, exercises:allExercises, note,
+                 duration_days:duration, start_date:startDate, end_date:endDate});
       if(!error) setSubmitted(true); else alert("Error: "+error.message);
     }
     setLoading(false);
@@ -546,6 +563,22 @@ function PrescribeView({ user, patient, onBack, existingPrescription }) {
               })}
             </div>
           )}
+
+          {/* Duration selector */}
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:11,fontWeight:700,color:C.dim,letterSpacing:1.5,textTransform:"uppercase",display:"block",marginBottom:8}}>Duración del plan</label>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {DURATIONS.map(d=>(
+                <button key={d.days} onClick={()=>setDuration(d.days)}
+                  style={{padding:"6px 12px",borderRadius:20,border:`1px solid ${duration===d.days?C.accent:C.border}`,background:duration===d.days?"rgba(38,166,154,0.15)":"transparent",color:duration===d.days?C.accent:C.muted,fontSize:12,fontWeight:duration===d.days?700:400,cursor:"pointer",transition:"all 0.15s"}}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            <p style={{color:C.muted,fontSize:11,marginTop:6}}>
+              Vence: <strong style={{color:C.accentL}}>{new Date(Date.now()+duration*24*60*60*1000).toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"})}</strong>
+            </p>
+          </div>
 
           <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Nota para el paciente..." rows={3}
             style={{...inp, resize:"none", marginBottom:12, lineHeight:1.5}}/>
@@ -875,8 +908,13 @@ function PatientProfile({ patient, user, onBack, onPrescribe, onApprove }) {
                   style={{ width:"100%", padding:16, display:"flex", alignItems:"center", justifyContent:"space-between", background:"none", border:"none", cursor:"pointer", textAlign:"left" }}>
                   <div>
                     <p style={{ color:C.text, fontWeight:600, fontSize:15, margin:0 }}>{i===0?"🟢 Plan actual":`Plan #${prescriptions.length-i}`}</p>
-                    <p style={{ color:C.dim, fontSize:12, marginTop:4 }}>
-                      {new Date(pres.created_at).toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"})} · {pres.exercises?.length||0} ejercicios
+                    <p style={{ color:C.dim, fontSize:12, marginTop:4, display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                      <span>{new Date(pres.created_at).toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"})} · {pres.exercises?.length||0} ejercicios</span>
+                      {pres.end_date && (()=>{
+                        const dl=Math.ceil((new Date(pres.end_date)-new Date())/(1000*60*60*24));
+                        const col=dl<0?C.danger:dl<=5?C.warn:C.success;
+                        return <span style={{fontSize:11,fontWeight:700,color:col,background:`${col}18`,border:`1px solid ${col}33`,borderRadius:8,padding:"1px 7px"}}>{dl<0?"Vencido":dl===0?"Vence hoy":`${dl}d restantes`}</span>;
+                      })()}
                     </p>
                   </div>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.dim} strokeWidth="2" style={{ transform:activePres===pres.id?"rotate(180deg)":"none", transition:"transform 0.2s" }}><path d="M6 9l6 6 6-6"/></svg>
@@ -887,10 +925,23 @@ function PatientProfile({ patient, user, onBack, onPrescribe, onApprove }) {
                     <div style={{ display:"flex", gap:8, marginBottom:14 }}>
                       <button onClick={async()=>{
                         if(!window.confirm("¿Duplicar este plan?")) return;
-                        await supabase.from("prescriptions").insert({patient_id:patient.id,therapist_id:user.id,exercises:pres.exercises,note:(pres.note||"")+" (copia)"});
+                        const dur=pres.duration_days||30;
+                        const sd=new Date().toISOString().split("T")[0];
+                        const ed=new Date(Date.now()+dur*24*60*60*1000).toISOString().split("T")[0];
+                        await supabase.from("prescriptions").insert({patient_id:patient.id,therapist_id:user.id,exercises:pres.exercises,note:pres.note||"",duration_days:dur,start_date:sd,end_date:ed});
                         fetchPrescriptions();
                       }} style={{ background:"rgba(126,87,194,0.12)", border:"1px solid rgba(126,87,194,0.25)", borderRadius:10, padding:"8px 10px", color:"#9c64f0", fontWeight:600, fontSize:12, cursor:"pointer" }}>
                         Duplicar
+                      </button>
+                      <button onClick={async()=>{
+                        if(!window.confirm("¿Renovar este plan por el mismo período?")) return;
+                        const dur=pres.duration_days||30;
+                        const sd=new Date().toISOString().split("T")[0];
+                        const ed=new Date(Date.now()+dur*24*60*60*1000).toISOString().split("T")[0];
+                        await supabase.from("prescriptions").update({start_date:sd,end_date:ed}).eq("id",pres.id);
+                        fetchPrescriptions();
+                      }} style={{ background:"rgba(38,166,154,0.08)", border:"1px solid rgba(38,166,154,0.2)", borderRadius:10, padding:"8px 10px", color:C.accent, fontWeight:600, fontSize:12, cursor:"pointer" }}>
+                        Renovar
                       </button>
                       <button onClick={()=>setEditPres(pres)}
                         style={{ flex:1, background:"rgba(38,166,154,0.15)", border:"1px solid rgba(38,166,154,0.3)", borderRadius:12, padding:"8px", color:C.accent, fontWeight:600, fontSize:13, cursor:"pointer" }}>
@@ -1627,21 +1678,25 @@ function DashboardView({ user, onNavigate }) {
   const [recent,setRecent]     = useState([]);
   const [apts,setApts]         = useState([]);
   const [requests,setRequests] = useState([]);
+  const [expiring,setExpiring] = useState([]);
   const [loading,setLoading]   = useState(true);
 
   useEffect(()=>{ load(); },[]);
 
   const load = async () => {
+    const in7days = new Date(Date.now()+7*24*60*60*1000).toISOString().split("T")[0];
     const [
       {data:patients},
       {data:appointments},
       {data:messages},
-      {data:reqs}
+      {data:reqs},
+      {data:expiringPlans},
     ] = await Promise.all([
       supabase.from("patients").select("*"),
       supabase.from("appointments").select("*").gte("date",localDateStr(new Date())).order("date").limit(4),
       supabase.from("messages").select("*").eq("unread",true),
       supabase.from("access_requests").select("*").order("created_at",{ascending:false}).then(r=>r.error?{data:[]}:r),
+      supabase.from("prescriptions").select("*,patients(name)").lte("end_date",in7days).gte("end_date",localDateStr(new Date())).then(r=>r.error?{data:[]}:r),
     ]);
     const p = patients||[];
     setStats({
@@ -1654,6 +1709,7 @@ function DashboardView({ user, onNavigate }) {
     setRecent(p.slice(0,4));
     setApts(appointments||[]);
     setRequests(reqs||[]);
+    setExpiring(expiringPlans||[]);
     setLoading(false);
   };
 
@@ -1724,6 +1780,26 @@ function DashboardView({ user, onNavigate }) {
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Expiring plans alert */}
+      {expiring.length>0 && (
+        <div style={{background:"rgba(239,83,80,0.07)",border:"1px solid rgba(239,83,80,0.25)",borderRadius:16,padding:"12px 16px",marginBottom:14}}>
+          <p style={{color:C.danger,fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,margin:"0 0 8px"}}>
+            Planes por vencer ({expiring.length})
+          </p>
+          <div style={{display:"grid",gap:6}}>
+            {expiring.map(p=>{
+              const daysLeft=Math.ceil((new Date(p.end_date)-new Date())/(1000*60*60*24));
+              return(
+                <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:"rgba(0,0,0,0.2)",borderRadius:8,padding:"6px 12px"}}>
+                  <p style={{color:C.text,fontSize:13,fontWeight:600,margin:0}}>{p.patients?.name||"Paciente"}</p>
+                  <span style={{fontSize:11,fontWeight:700,color:daysLeft===0?C.danger:C.warn}}>{daysLeft===0?"Vence hoy":`${daysLeft}d`}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

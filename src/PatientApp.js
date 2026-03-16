@@ -233,9 +233,16 @@ export default function PatientApp({ user }) {
               </div>
             ):(
               <div>
-                <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:12}}>
+                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12,gap:8}}>
                   <h2 style={{fontFamily:"'Fraunces',serif",color:C.text,fontSize:"1.2rem",margin:0,fontWeight:700}}>Plan actual</h2>
-                  <span style={{color:C.dim,fontSize:"0.75rem"}}>{new Date(pres.created_at).toLocaleDateString("es-CO",{day:"numeric",month:"short"})}</span>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <span style={{color:C.dim,fontSize:"0.75rem",display:"block"}}>{new Date(pres.created_at).toLocaleDateString("es-CO",{day:"numeric",month:"short"})}</span>
+                    {pres.end_date && (()=>{
+                      const dl=Math.ceil((new Date(pres.end_date)-new Date())/(1000*60*60*24));
+                      const col=dl<0?"#ef5350":dl<=5?"#ffa726":"#66bb6a";
+                      return <span style={{fontSize:"0.7rem",fontWeight:700,color:col,background:`${col}18`,border:`1px solid ${col}33`,borderRadius:8,padding:"1px 7px",display:"block",marginTop:2}}>{dl<0?"Vencido":dl===0?"Vence hoy":`${dl}d restantes`}</span>;
+                    })()}
+                  </div>
                 </div>
 
                 {pres.note && (
